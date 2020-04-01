@@ -1,0 +1,16 @@
+{
+  "name": "blackbox-server",
+  "version": "1.0.0",
+  "description": "",
+  "main": "main.js",
+  "scripts": {
+    "start": "node dist/main.js",
+    "build": "tsc",
+    "watch": "tsc -w"
+  },
+  "author": "Brandon DeRosier",
+  "license": "",
+  "dependencies": {
+    "typescript": "^3.8.3"
+  }
+}
