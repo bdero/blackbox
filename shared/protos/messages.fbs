@@ -7,7 +7,6 @@ table LoginPayload {
 union AnyPayload { LoginPayload }
 
 table Message {
-    type: byte;
     payload: AnyPayload (required);
 }
 

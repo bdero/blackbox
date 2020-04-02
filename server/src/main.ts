@@ -13,8 +13,15 @@ const wsServer = new WebSocket.Server({ noServer: true })
 wsServer.on("connection", (socket, request) => {
     console.log("New connection!")
     socket.on("message", (data) => {
-        console.log(`Received message from client: ${data}`)
-        socket.send("I'm the server, responding to your message")
+        const buf = new flatbuffers.ByteBuffer(data as Uint8Array)
+        const message = Buffers.Message.getRootAsMessage(buf)
+        const payloadType = message.payloadType()
+        if (payloadType === Buffers.AnyPayload.LoginPayload) {
+            const username = message.payload(new Buffers.LoginPayload()).username()
+
+            console.log(`Received login payload for username ${username}`)
+            socket.send(`You have logged in as ${username}`)
+        }
     })
 })
 

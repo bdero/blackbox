@@ -5,8 +5,18 @@ import {flatbuffers} from "flatbuffers"
 import {BlackBox as Buffers} from "./shared/protos/messages_generated"
 
 const builder = new flatbuffers.Builder()
+
+const usernameOffset = builder.createString("bdero")
+Buffers.LoginPayload.startLoginPayload(builder)
+Buffers.LoginPayload.addUsername(builder, usernameOffset)
+const payloadOffset = Buffers.LoginPayload.endLoginPayload(builder)
 Buffers.Message.startMessage(builder)
-const loginMessage = builder.asUint8Array();
+Buffers.Message.addPayloadType(builder, Buffers.AnyPayload.LoginPayload)
+Buffers.Message.addPayload(builder, payloadOffset)
+const messageOffset = Buffers.Message.endMessage(builder)
+builder.finish(messageOffset)
+
+const loginMessage = builder.asUint8Array()
 
 const socket = new WebSocket("ws://localhost:8888")
 
