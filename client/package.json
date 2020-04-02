@@ -4,16 +4,17 @@
   "description": "",
   "main": "index.html",
   "scripts": {
-    "start": "parcel serve index.html -p 8080",
-    "build": "parcel build index.html --public-url .",
-    "watch": "parcel watch index.html"
+    "start": "parcel serve index.html -p 8080 --no-autoinstall",
+    "build": "parcel build index.html --public-url . --no-autoinstall",
+    "watch": "parcel watch index.html --no-autoinstall"
   },
   "author": "Brandon DeRosier",
   "license": "",
   "dependencies": {
     "@types/flatbuffers": "^1.10.0",
     "flatbuffers": "^1.12.0",
-    "parcel-bundler": "^1.12.4"
+    "parcel-bundler": "^1.12.4",
+    "shared": "^0.2.0"
   },
   "devDependencies": {
     "typescript": "^3.8.3"

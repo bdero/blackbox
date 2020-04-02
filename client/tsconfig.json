@@ -1,7 +1,7 @@
 {
     "compilerOptions": {
         "module": "CommonJS",
-        "rootDirs": ["src", "../../shared"],
+        "rootDirs": ["src"],
         "outDir": "dist",
         "sourceMap": true,
         "types": [
