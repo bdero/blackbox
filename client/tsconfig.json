@@ -1,8 +1,11 @@
 {
     "compilerOptions": {
         "module": "CommonJS",
-        "rootDir": "src",
+        "rootDirs": ["src", "../../shared"],
         "outDir": "dist",
-        "sourceMap": true
+        "sourceMap": true,
+        "types": [
+            "flatbuffers"
+        ]
     }
 }
