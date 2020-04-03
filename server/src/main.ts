@@ -4,11 +4,20 @@ import {flatbuffers} from "flatbuffers"
 
 import {BlackBox as Buffers} from "../../shared/protos/messages_generated"
 import Flags from "./flags"
+import {Player, GameSession, GameSessionSeat, initDatabase} from "./database"
 
 const builder = new flatbuffers.Builder()
 
 const httpServer = http.createServer()
 const wsServer = new WebSocket.Server({ noServer: true })
+
+initDatabase().then(() => {
+    Player.findAll({
+        where: {
+            displayName: "bdero"
+        }
+    })
+})
 
 wsServer.on("connection", (socket, request) => {
     console.log("New connection!")

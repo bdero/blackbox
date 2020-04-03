@@ -13,8 +13,11 @@
   "dependencies": {
     "@types/flatbuffers": "^1.10.0",
     "@types/node": "^13.9.8",
+    "@types/sqlite3": "^3.1.6",
     "@types/ws": "^7.2.3",
     "flatbuffers": "^1.12.0",
+    "sequelize": "^5.21.5",
+    "sqlite3": "^4.1.1",
     "typescript": "^3.8.3",
     "ws": "^7.2.3"
   }
