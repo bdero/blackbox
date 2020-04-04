@@ -1,0 +1,17 @@
+{
+  "name": "blackbox-shared",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.ts",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Brandon DeRosier",
+  "license": "",
+  "dependencies": {
+    "@types/flatbuffers": "^1.10.0",
+    "@types/ws": "^7.2.3",
+    "flatbuffers": "^1.12.0",
+    "ws": "^7.2.3"
+  }
+}

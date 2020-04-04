@@ -5,11 +5,9 @@
         "outDir": "dist",
         "sourceMap": true,
         "types": [
-            "node",
-            "flatbuffers",
+            "flatbuffers"
         ],
+        "composite": true,
     },
-    "references": [
-        {"path": "../shared"},
-    ],
+    "references": []
 }

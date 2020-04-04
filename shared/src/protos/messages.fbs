@@ -2,6 +2,7 @@ namespace BlackBox;
 
 table LoginPayload {
     username: string (required);
+    key: string;
 }
 
 union AnyPayload { LoginPayload }

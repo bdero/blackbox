@@ -2,27 +2,44 @@ import * as http from "http"
 import WebSocket = require("ws")
 import {flatbuffers} from "flatbuffers"
 
-import {BlackBox as Buffers} from "../../shared/protos/messages_generated"
+import {BlackBox as Buffers} from "../../shared/src/protos/messages_generated"
+import {MessageMap, dispatchMessage} from "../../shared/src/dispatch"
 import Flags from "./flags"
 import {sqliteDBInit, Player, GameSession, GameSessionSeat} from "./database"
 
-const builder = new flatbuffers.Builder()
+function generatePlayerKey(): string {
+    const chars = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+    let key = ""
+    for (let i = 0; i < 64; i++) {
+        key += chars[Math.floor(Math.random() * chars.length)]
+    }
+    return key
+}
 
 const httpServer = http.createServer()
 const wsServer = new WebSocket.Server({ noServer: true })
 
+
+const messageMap: MessageMap = {}
+messageMap[Buffers.AnyPayload.LoginPayload] = {
+    payloadType: Buffers.LoginPayload,
+    dispatch: (socket: WebSocket, payload: Buffers.LoginPayload) => {
+        const username = payload.username()
+
+        if (payload.key === null) {
+            console.log(`Received registration payload for "${username}"`)
+        }
+        console.log(`Received login payload for username ${username}`)
+        socket.send(`You have logged in as ${username}`)
+    }
+}
+
+
+
 wsServer.on("connection", (socket, request) => {
     console.log("New connection!")
     socket.on("message", (data) => {
-        const buf = new flatbuffers.ByteBuffer(data as Uint8Array)
-        const message = Buffers.Message.getRootAsMessage(buf)
-        const payloadType = message.payloadType()
-        if (payloadType === Buffers.AnyPayload.LoginPayload) {
-            const username = message.payload(new Buffers.LoginPayload()).username()
-
-            console.log(`Received login payload for username ${username}`)
-            socket.send(`You have logged in as ${username}`)
-        }
+        dispatchMessage(messageMap, socket, data as Uint8Array)
     })
 })
 
