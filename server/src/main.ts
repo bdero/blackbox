@@ -4,20 +4,12 @@ import {flatbuffers} from "flatbuffers"
 
 import {BlackBox as Buffers} from "../../shared/protos/messages_generated"
 import Flags from "./flags"
-import {Player, GameSession, GameSessionSeat, initDatabase} from "./database"
+import {sqliteDBInit, Player, GameSession, GameSessionSeat} from "./database"
 
 const builder = new flatbuffers.Builder()
 
 const httpServer = http.createServer()
 const wsServer = new WebSocket.Server({ noServer: true })
-
-initDatabase().then(() => {
-    Player.findAll({
-        where: {
-            displayName: "bdero"
-        }
-    })
-})
 
 wsServer.on("connection", (socket, request) => {
     console.log("New connection!")
@@ -43,6 +35,8 @@ httpServer.on("upgrade", (request, socket, head) => {
     })
 })
 
-const port = Flags["--port"].value;
-console.log(`Starting websocket server on port ${port}...`)
-httpServer.listen(port)
+sqliteDBInit().then(() => {
+    const port = Flags["--port"].value;
+    console.log(`Starting websocket server on port ${port}...`)
+    httpServer.listen(port)
+})

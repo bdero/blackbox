@@ -7,11 +7,12 @@ import {Sequelize, DataTypes, Model} from "sequelize"
 
 const promiseExec = util.promisify(exec)
 
-const databasePath = path.join(process.cwd(), "data", "blackbox.db")
+const databasePath = path.join(process.cwd(), "data")
+const databaseFilename = "blackbox.db"
 
 const sequelize = new Sequelize({
     dialect: "sqlite",
-    storage: databasePath
+    storage: path.join(databasePath, databaseFilename)
 })
 
 class Player extends Model {}
@@ -20,6 +21,7 @@ Player.init({
         type: DataTypes.INTEGER,
         primaryKey: true,
         autoIncrement: true,
+        allowNull: false,
     },
     displayName: {
         type: DataTypes.STRING,
@@ -45,6 +47,7 @@ GameSession.init({
         type: DataTypes.INTEGER,
         primaryKey: true,
         autoIncrement: true,
+        allowNull: false,
     },
     inviteCode: {
         type: DataTypes.STRING,
@@ -87,14 +90,42 @@ GameSessionSeat.belongsTo(Player)
 GameSession.hasMany(GameSessionSeat)
 GameSessionSeat.belongsTo(GameSession)
 
-async function initDatabase() {
-    console.log(`Database path: ${databasePath}`)
-    
-    const results = await promiseExec(`sqlite3 ${databasePath} ".databases"`)
-    console.log(`sqlite3 stdout:\n${results.stdout}`)
-    console.log(`sqlite3 stderr:\n${results.stderr}`)
+async function executeSubprocess(command: string, quiet: boolean = false) {
+    if (!quiet) {
+        console.log(`Running subprocess: \`${command}\``)
+    }
+    const results = await promiseExec(command)
+    if (!quiet) {
+        const sep = "===================="
+        console.log(
+            `  + stdout:\n` +
+            `${sep}\n${results.stdout}\n${sep}\n` +
+            `  + stderr:\n` +
+            `${sep}\n${results.stderr}\n${sep}`
+        )
+    }
+    return results;
+}
 
+/**
+ * Initializes the SQLite database. This should always be done before interacting with any models.
+ */
+async function sqliteDBInit() {
+    const databaseLocation = path.join(databasePath, databaseFilename)
+    console.log(`Initializing SQLite DB at location: ${databaseLocation}`)
+    
+    if (!fs.existsSync(databasePath)) {
+        console.log(`Database path "${databasePath}" doesn't exist; making directory...`)
+        fs.mkdirSync(databasePath, {recursive: true})
+    }
+
+    console.log("Touching database file with sqlite3...")
+    // Open the database file using the sqlite3 CLI.
+    // This is a hack to create a valid empty database if the file doesn't exist.
+    await executeSubprocess(`sqlite3 ${databaseLocation} ".databases"`)
+
+    console.log("Synchronizing database...")
     await sequelize.sync();
 }
 
-export {initDatabase, Player, GameSession, GameSessionSeat}
+export {sqliteDBInit, Player, GameSession, GameSessionSeat}
