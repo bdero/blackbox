@@ -2,8 +2,8 @@ import * as http from "http"
 import WebSocket = require("ws")
 import {flatbuffers} from "flatbuffers"
 
-import {BlackBox as Buffers} from "../../shared/src/protos/messages_generated"
-import {MessageMap, dispatchMessage} from "../../shared/src/dispatch"
+import {BlackBox as Buffers} from "./shared/src/protos/messages_generated"
+import {MessageMap, dispatchMessage} from "./shared/src/dispatch"
 import Flags from "./flags"
 import {sqliteDBInit, Player, GameSession, GameSessionSeat} from "./database"
 
@@ -25,16 +25,16 @@ messageMap[Buffers.AnyPayload.LoginPayload] = {
     payloadType: Buffers.LoginPayload,
     dispatch: (socket: WebSocket, payload: Buffers.LoginPayload) => {
         const username = payload.username()
+        const key = payload.key()
 
-        if (payload.key === null) {
+        console.log(`Payload key: ${key}`)
+        if (key === null) {
             console.log(`Received registration payload for "${username}"`)
         }
         console.log(`Received login payload for username ${username}`)
         socket.send(`You have logged in as ${username}`)
     }
 }
-
-
 
 wsServer.on("connection", (socket, request) => {
     console.log("New connection!")
