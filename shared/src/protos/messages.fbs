@@ -1,11 +1,25 @@
 namespace BlackBox;
 
+// Initial login/registration payload sent from client to server.
+// When key==null, a new key is generated and registered.
 table LoginPayload {
     username: string (required);
     key: string;
 }
 
-union AnyPayload { LoginPayload }
+// Login/registration response payload sent from server to client.
+// If success==false then errorMessage is populated with a failure reason.
+table LoginAckPayload {
+    success: bool;
+    errorMessage: string;
+    username: string;
+    key: string;
+}
+
+union AnyPayload {
+    LoginPayload,
+    LoginAckPayload
+}
 
 table Message {
     payload: AnyPayload (required);

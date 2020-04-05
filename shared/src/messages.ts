@@ -3,6 +3,9 @@ import {flatbuffers} from "flatbuffers"
 
 import {BlackBox as Buffers} from "./protos/messages_generated"
 
+/**
+ * Builder for game protocol flatbuffer messages suitable for WebSocket transport.
+ */
 class MessageBuilder {
     private builder: flatbuffers.Builder
     private payloadType: Buffers.AnyPayload
@@ -18,19 +21,40 @@ class MessageBuilder {
         return new MessageBuilder()
     }
 
+    createString(str: string | null | undefined) {
+        if (str === null || str === undefined) return null
+        return this.builder.createString(str)
+    }
+
     setLoginPayload(username: string, key: string | null = null): MessageBuilder {
         this.payloadType = Buffers.AnyPayload.LoginPayload
         
         const usernameOffset = this.builder.createString(username)
+        let keyOffset = this.createString(key)
+
         Buffers.LoginPayload.startLoginPayload(this.builder)
         Buffers.LoginPayload.addUsername(this.builder, usernameOffset)
-        if (key !== null) {
-            const keyOffset = this.builder.createString(key)
-            Buffers.LoginPayload.addKey(this.builder, keyOffset)
-        }
+        if (keyOffset !== null) Buffers.LoginPayload.addKey(this.builder, keyOffset)
 
         this.payloadOffset = Buffers.LoginPayload.endLoginPayload(this.builder)
+        return this
+    }
 
+    
+    setLoginAckPayload(success: boolean, errorMessage?: string, username?: string, key?: string): MessageBuilder {
+        this.payloadType = Buffers.AnyPayload.LoginAckPayload
+
+        let errorMessageOffset = this.createString(errorMessage)
+        let usernameOffset = this.createString(username)
+        let keyOffset = this.createString(key)
+
+        Buffers.LoginAckPayload.startLoginAckPayload(this.builder)
+        Buffers.LoginAckPayload.addSuccess(this.builder, success)
+        if (errorMessageOffset !== null) Buffers.LoginAckPayload.addErrorMessage(this.builder, errorMessageOffset)
+        if (usernameOffset !== null) Buffers.LoginAckPayload.addUsername(this.builder, usernameOffset)
+        if (keyOffset !== null) Buffers.LoginAckPayload.addKey(this.builder, keyOffset)
+
+        this.payloadOffset = Buffers.LoginAckPayload.endLoginAckPayload(this.builder)
         return this
     }
 
@@ -49,7 +73,7 @@ class MessageBuilder {
     }
 }
 
-type MessageHandler = (socket: WebSocket, payload: any) => void
+type MessageHandler = (state: any, payload: any) => void
 type MessageMap = {
     [key: number]: {
         payloadType: any,
@@ -57,6 +81,9 @@ type MessageMap = {
     }
 }
 
+/**
+ * Game protocol flatbuffer parser and payload dispatcher.
+ */
 class MessageDispatcher {
     private messageMap: MessageMap
 
@@ -75,7 +102,7 @@ class MessageDispatcher {
         return payloadId in this.messageMap
     }
 
-    dispatch(socket: WebSocket, data: Uint8Array) {
+    dispatch(state: any, data: Uint8Array) {
         const buf = new flatbuffers.ByteBuffer(data)
         const message = Buffers.Message.getRootAsMessage(buf)
         const payloadType = message.payloadType()
@@ -85,7 +112,7 @@ class MessageDispatcher {
         }
         const payloadClass = this.messageMap[payloadType].payloadType
         const payload = message.payload(new payloadClass())
-        this.messageMap[payloadType].dispatch(socket, payload)
+        this.messageMap[payloadType].dispatch(state, payload)
     }
 }
 

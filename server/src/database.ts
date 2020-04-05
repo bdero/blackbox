@@ -35,6 +35,7 @@ Player.init({
     timeCreated: {
         type: DataTypes.DATE,
         allowNull: false,
+        defaultValue: DataTypes.NOW,
     },
 }, {
     sequelize,
@@ -57,6 +58,7 @@ GameSession.init({
     timeCreated: {
         type: DataTypes.DATE,
         allowNull: false,
+        defaultValue: DataTypes.NOW,
     },
 }, {
     sequelize,
