@@ -47,8 +47,8 @@ class Connection {
     
     async login(username: string, key: string) {
         username = username.trim()
-        if (username.length > 40) {
-            username = username.slice(0, 40).trim()
+        if (username.length > 50) {
+            username = username.slice(0, 50).trim()
         }
         if (username.length === 0) {
             username = randomName()
