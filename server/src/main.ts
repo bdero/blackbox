@@ -3,15 +3,15 @@ import WebSocket = require("ws")
 import {flatbuffers} from "flatbuffers"
 
 import {BlackBox as Buffers} from "./shared/src/protos/messages_generated"
-import {MessageMap, dispatchMessage} from "./shared/src/dispatch"
+import {MessageDispatcher} from "./shared/src/messages"
 import Flags from "./flags"
 import {sqliteDBInit, Player, GameSession, GameSessionSeat} from "./database"
 
+const BASE58_CHARS = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
 function generatePlayerKey(): string {
-    const chars = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
     let key = ""
     for (let i = 0; i < 64; i++) {
-        key += chars[Math.floor(Math.random() * chars.length)]
+        key += BASE58_CHARS[Math.floor(Math.random() * BASE58_CHARS.length)]
     }
     return key
 }
@@ -19,11 +19,11 @@ function generatePlayerKey(): string {
 const httpServer = http.createServer()
 const wsServer = new WebSocket.Server({ noServer: true })
 
-
-const messageMap: MessageMap = {}
-messageMap[Buffers.AnyPayload.LoginPayload] = {
-    payloadType: Buffers.LoginPayload,
-    dispatch: (socket: WebSocket, payload: Buffers.LoginPayload) => {
+const dispatcher = new MessageDispatcher()
+dispatcher.register(
+    Buffers.AnyPayload.LoginPayload,
+    Buffers.LoginPayload,
+    (socket: WebSocket, payload: Buffers.LoginPayload) => {
         const username = payload.username()
         const key = payload.key()
 
@@ -34,12 +34,12 @@ messageMap[Buffers.AnyPayload.LoginPayload] = {
         console.log(`Received login payload for username ${username}`)
         socket.send(`You have logged in as ${username}`)
     }
-}
+)
 
 wsServer.on("connection", (socket, request) => {
     console.log("New connection!")
     socket.on("message", (data) => {
-        dispatchMessage(messageMap, socket, data as Uint8Array)
+        dispatcher.dispatch(socket, data as Uint8Array)
     })
 })
 
