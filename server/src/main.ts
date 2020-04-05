@@ -4,10 +4,12 @@ import {flatbuffers} from "flatbuffers"
 
 import {BlackBox as Buffers} from "./shared/src/protos/messages_generated"
 import {MessageBuilder, MessageDispatcher} from "./shared/src/messages"
+import {randomName} from "./shared/src/word_lists"
 import Flags from "./flags"
 import {sqliteDBInit, Player, GameSession, GameSessionSeat} from "./database"
 
 const BASE58_CHARS = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+const BASE58_SET = new Set(BASE58_CHARS)
 function generatePlayerKey(): string {
     let key = ""
     for (let i = 0; i < 64; i++) {
@@ -44,7 +46,14 @@ class Connection {
     }
     
     async login(username: string, key: string) {
-        // TODO(bdero): Validate username and key
+        username = username.trim()
+        if (username.length > 40) {
+            username = username.slice(0, 40).trim()
+        }
+        if (username.length === 0) {
+            username = randomName()
+        }
+        // TODO(bdero): Validate username characters (or don't, because who cares?)
 
         const resultKey: string = null
         if (key === null) {
@@ -57,6 +66,8 @@ class Connection {
             if (playerQuery.length === 0) {
                 this.logError(`Received login payload for nonexistent key "${key}" (username: "${username}"); registering instead`)
                 key = await this.register(username)
+            } else {
+                username = playerQuery[0].get('displayName') as string
             }
         }
         this.socket.send(

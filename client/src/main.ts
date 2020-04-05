@@ -51,7 +51,7 @@ socket.onopen = (event) => {
     const loginInfo = ClientState.getUserLogin()
     if (loginInfo.key === null) {
         console.log("No previous user on record")
-        loginInfo.username = "bdero"
+        loginInfo.username = ""
     } else {
         console.log(`Stored user info found: key="${loginInfo.key}"; username="${loginInfo.username}"`)
     }
