@@ -1,8 +1,8 @@
 namespace BlackBox;
 
 // Initial login/registration payload sent from client to server.
-// When key==null, a new key is generated and registered.
 table LoginPayload {
+    register: bool;
     username: string (required);
     key: string;
 }
@@ -14,6 +14,58 @@ table LoginAckPayload {
     errorMessage: string;
     username: string;
     key: string;
+}
+
+// Join/create request payload sent from client to server.
+table JoinGamePayload {
+    createGame: bool;
+    inviteCode: string;
+}
+
+struct Vec2 {
+    x: int;
+    y: int;
+}
+
+struct BoardMove {
+    in: Vec2;
+    out: Vec2;
+}
+
+table GameBoard {
+    visible: bool;
+    atomLocations: [Vec2]; // Atom locations are not sent to opposing players or spectators until the game is over.
+    moves: [BoardMove];
+}
+
+table GameSessionPlayer {
+    username: string (required);
+    online: bool;
+}
+
+enum GameSessionStatus: byte {
+    SelectingAtoms,
+    PlayerATurn,
+    PlayerBTurn,
+    PlayerAWin,
+    PlayerBWin
+}
+
+table GameSessionState {
+    seatNumber: int; // Seat 0 and 1 are players, seat >= 2 are spectators.
+    boardA: GameBoard (required);
+    boardB: GameBoard (required);
+    roster: [GameSessionPlayer] (required); // Players and spectators
+    status: GameSessionStatus;
+}
+
+// Join/create response payload sent from server to client.
+// If success==false then errorMessage is populated with a failure reason.
+table JoinGameAckPayload {
+    success: bool;
+    errorMessage: string;
+    inviteCode: string (required);
+    gameState: GameSessionState;
 }
 
 union AnyPayload {

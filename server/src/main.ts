@@ -45,31 +45,47 @@ class Connection {
         return this.connectionId;
     }
     
-    async login(username: string, key: string) {
-        username = username.trim()
-        if (username.length > 50) {
-            username = username.slice(0, 50).trim()
-        }
-        if (username.length === 0) {
-            username = randomName()
-        }
-        // TODO(bdero): Validate username characters (or don't, because who cares?)
+    async login(loginPayload: Buffers.LoginPayload) {
+        let registering = loginPayload.register()
+        let username = loginPayload.username()
+        let key = loginPayload.key()
 
         const resultKey: string = null
-        if (key === null) {
+        if (registering) {
+            // Sanitize username
+            username = username.trim()
+            if (username.length > 50) {
+                username = username.slice(0, 50).trim()
+            }
+            if (username.length === 0) {
+                username = randomName()
+            }
+            // TODO(bdero): Validate username characters (or don't, because who cares?)
+
             this.log(`Received registration payload for "${username}"`)
             key = await this.register(username)
-        } else {
-            const playerQuery: Array<Player> = await Player.findAll({
-                where: {secretKey: key}
-            })
-            if (playerQuery.length === 0) {
-                this.logError(`Received login payload for nonexistent key "${key}" (username: "${username}"); registering instead`)
-                key = await this.register(username)
-            } else {
-                username = playerQuery[0].get('displayName') as string
-            }
+
+            this.socket.send(MessageBuilder.create()
+                .setLoginAckPayload(true, undefined, username, key)
+                .build())
+            return
         }
+
+        const playerQuery: Array<Player> = await Player.findAll({
+            where: {secretKey: key}
+        })
+
+        if (playerQuery.length === 0) {
+            this.log(`Received login payload for nonexistent key "${key}" (username: "${username}")`)
+
+            this.socket.send(MessageBuilder.create()
+                .setLoginAckPayload(false, "Unknown player key")
+                .build())
+            return
+        }
+
+        username = playerQuery[0].get('displayName') as string
+        console.log(`Login successful for "${key}" (username: "${username}")`)
         this.socket.send(
             MessageBuilder.create()
                 .setLoginAckPayload(true, undefined, username, key)
@@ -103,11 +119,7 @@ const dispatcher = new MessageDispatcher()
 dispatcher.register(
     Buffers.AnyPayload.LoginPayload,
     Buffers.LoginPayload,
-    (connection: Connection, payload: Buffers.LoginPayload) => {
-        const username = payload.username()
-        const key = payload.key()
-        connection.login(username, key)
-    }
+    (connection: Connection, payload: Buffers.LoginPayload) => connection.login(payload)
 )
 
 const connectionMap: Map<WebSocket, Connection> = new Map()

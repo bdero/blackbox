@@ -26,13 +26,14 @@ class MessageBuilder {
         return this.builder.createString(str)
     }
 
-    setLoginPayload(username: string, key: string | null = null): MessageBuilder {
+    setLoginPayload(register: boolean, username: string, key: string | null = null): MessageBuilder {
         this.payloadType = Buffers.AnyPayload.LoginPayload
         
         const usernameOffset = this.builder.createString(username)
         let keyOffset = this.createString(key)
 
         Buffers.LoginPayload.startLoginPayload(this.builder)
+        Buffers.LoginPayload.addRegister(this.builder, register)
         Buffers.LoginPayload.addUsername(this.builder, usernameOffset)
         if (keyOffset !== null) Buffers.LoginPayload.addKey(this.builder, keyOffset)
 
