@@ -85,7 +85,7 @@ class Connection {
         }
 
         username = playerQuery[0].get('displayName') as string
-        console.log(`Login successful for "${key}" (username: "${username}")`)
+        this.log(`Login successful for "${key}" (username: "${username}")`)
         this.socket.send(
             MessageBuilder.create()
                 .setLoginAckPayload(true, undefined, username, key)

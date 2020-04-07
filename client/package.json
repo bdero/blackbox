@@ -12,8 +12,12 @@
   "license": "",
   "dependencies": {
     "@types/flatbuffers": "^1.10.0",
+    "@types/react": "^16.9.32",
+    "@types/react-dom": "^16.9.6",
     "flatbuffers": "^1.12.0",
     "parcel-bundler": "^1.12.4",
+    "react": "^16.13.1",
+    "react-dom": "^16.13.1",
     "shared": "^0.2.0"
   },
   "devDependencies": {
