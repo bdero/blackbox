@@ -19,7 +19,7 @@ table LoginAckPayload {
 // Join/create request payload sent from client to server.
 table JoinGamePayload {
     createGame: bool;
-    inviteCode: string;
+    inviteCode: string (required);
 }
 
 struct Vec2 {
@@ -35,7 +35,7 @@ struct BoardMove {
 table GameBoard {
     visible: bool;
     atomLocations: [Vec2]; // Atom locations are not sent to opposing players or spectators until the game is over.
-    moves: [BoardMove];
+    moves: [BoardMove] (required);
 }
 
 table GameSessionPlayer {
@@ -51,12 +51,16 @@ enum GameSessionStatus: byte {
     PlayerBWin
 }
 
-table GameSessionState {
+table GameMetadata {
     seatNumber: int; // Seat 0 and 1 are players, seat >= 2 are spectators.
-    boardA: GameBoard (required);
-    boardB: GameBoard (required);
     roster: [GameSessionPlayer] (required); // Players and spectators
     status: GameSessionStatus;
+}
+
+table GameSessionState {
+    metadata: GameMetadata (required);
+    boardA: GameBoard (required);
+    boardB: GameBoard (required);
 }
 
 // Join/create response payload sent from server to client.
@@ -64,13 +68,24 @@ table GameSessionState {
 table JoinGameAckPayload {
     success: bool;
     errorMessage: string;
-    inviteCode: string (required);
+    inviteCode: string;
     gameState: GameSessionState;
 }
 
+// List games request payload sent from client to server.
+table ListGamesPayload {}
+
+// List games response payload sent from server to client.
+table ListGamesAckPayload {
+    success: bool;
+    errorMessage: string;
+    metadatas: [GameMetadata];
+}
+
 union AnyPayload {
-    LoginPayload,
-    LoginAckPayload
+    LoginPayload, LoginAckPayload,
+    JoinGamePayload, JoinGameAckPayload,
+    ListGamesPayload, ListGamesAckPayload,
 }
 
 table Message {
