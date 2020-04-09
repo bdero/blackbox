@@ -45,6 +45,7 @@ class GameBoard {
 }
 
 class GameMetadata {
+    public inviteCode: string
     public seatNumber?: number // Client only
     public roster: {key?: string, username: string, online: boolean}[] // Keys are server only
     public status: Buffers.GameSessionStatus
@@ -104,6 +105,8 @@ class MessageBuilder {
     }
 
     private createGameMetadata(metadata: GameMetadata): number {
+        const inviteCodeOffset = this.createString(metadata.inviteCode);
+
         let rosterOffset: number | null = null
         if (metadata.roster.length > 0) {
             const players = metadata.roster.map(player => {
@@ -117,6 +120,7 @@ class MessageBuilder {
         }
 
         Buffers.GameMetadata.startGameMetadata(this.builder)
+        Buffers.GameMetadata.addInviteCode(this.builder, rosterOffset)
         Buffers.GameMetadata.addSeatNumber(this.builder, metadata.seatNumber)
         if (rosterOffset !== null) Buffers.GameMetadata.addRoster(this.builder, rosterOffset)
         Buffers.GameMetadata.addStatus(this.builder, metadata.status)
@@ -188,13 +192,13 @@ class MessageBuilder {
         return this
     }
 
-    setJoinGamePayload(createGame: boolean, inviteCode: string): MessageBuilder {
+    setJoinGamePayload(createGame: boolean, inviteCode?: string): MessageBuilder {
         this.payloadType = Buffers.AnyPayload.JoinGamePayload
 
-        const inviteCodeOffset = this.createString(inviteCode)
+        const inviteCodeOffset = inviteCode !== undefined ? this.createString(inviteCode) : null
         Buffers.JoinGamePayload.startJoinGamePayload(this.builder)
         Buffers.JoinGamePayload.addCreateGame(this.builder, createGame)
-        Buffers.JoinGamePayload.addInviteCode(this.builder, inviteCodeOffset)
+        if (inviteCodeOffset !== null) Buffers.JoinGamePayload.addInviteCode(this.builder, inviteCodeOffset)
 
         this.payloadOffset = Buffers.JoinGamePayload.endJoinGamePayload(this.builder)
         return this
@@ -236,6 +240,7 @@ class MessageBuilder {
         }
 
         Buffers.ListGamesAckPayload.startListGamesAckPayload(this.builder)
+        Buffers.ListGamesAckPayload.addSuccess(this.builder, success)
         if (metadataOffset !== null) Buffers.ListGamesAckPayload.addMetadatas(this.builder, metadataOffset)
         if (errorMessageOffset !== null) Buffers.ListGamesAckPayload.addErrorMessage(this.builder, errorMessageOffset)
 

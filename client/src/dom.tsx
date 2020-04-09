@@ -1,6 +1,8 @@
 import * as React from "react"
 import * as ReactDOM from "react-dom"
-import {login} from "./client_dispatcher"
+
+import {login, joinGame} from "./client_dispatcher"
+import {GameMetadata, GameState} from "./shared/src/messages"
 
 enum View {
     Init,
@@ -12,6 +14,8 @@ type RenderState = {
     currentView: View,
     username: string,
     loggingIn: boolean, // For registration view
+    gamesList: GameMetadata[],
+    gameState: GameState | null,
 }
 type StateSetter = (stateTransform: {[key: string]: any} | ((previousState: RenderState) => RenderState)) => void
 
@@ -72,9 +76,40 @@ class RegisterView extends React.Component<{username: string, loggingIn: boolean
     }
 }
 
-class GameListView extends React.Component {
+class GameListItem extends React.Component<{game: GameMetadata}> {
     render() {
-        return <div>Game list view</div>
+        return (
+            <tr>
+                <td>{this.props.game.status}</td>
+                <td>{this.props.game.inviteCode}</td>
+            </tr>
+        )
+    }
+}
+
+class GameListView extends React.Component<{gamesList: GameMetadata[]}> {
+    newGameClicked() {
+        joinGame(true)
+    }
+
+    getListContents(): JSX.Element {
+        if (this.props.gamesList.length === 0) {
+            return <h1>No games started!</h1>
+        }
+
+        const listItems: JSX.Element[] = this.props.gamesList.map(
+            g => <GameListItem game={g} />
+        )
+        return <table>{listItems}</table>
+    }
+
+    render() {
+        return (
+            <div>
+                {this.getListContents()}
+                <button onClick={this.newGameClicked}>New game</button>
+            </div>
+        )
     }
 }
 
@@ -90,7 +125,9 @@ class Root extends React.Component<{}, RenderState> {
         this.state = {
             currentView: View.Init,
             username: "",
-            loggingIn: false
+            loggingIn: false,
+            gamesList: [],
+            gameState: null,
         }
     }
     componentDidMount() {
@@ -106,7 +143,11 @@ class Root extends React.Component<{}, RenderState> {
                     />
                 )
             case View.GameList:
-                return <GameListView />
+                return (
+                    <GameListView
+                        gamesList={this.state.gamesList}
+                    />
+                )
             case View.GamePlay:
                 return <GamePlayView />
             default:

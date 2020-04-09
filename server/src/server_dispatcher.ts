@@ -87,7 +87,8 @@ class Connection {
         this.socket.send(
             MessageBuilder.create()
                 .setLoginAckPayload(true, undefined, username, key)
-                .build())
+                .build()
+        )
     }
 
     private async register(username: string): Promise<string> {
@@ -133,10 +134,12 @@ class Connection {
         // TODO(bdero): Figure out how to get these dynamic model getters typed correctly
         const gameSessions: GameSession[] = await (this.playerModel as any).getGameSessions() as GameSession[]
         const metadatas = await Promise.all(gameSessions.map(s => this.createMetadataFromSessionModel(s)))
+        this.log(`Listing ${metadatas.length} game(s)`)
 
         this.socket.send(
             MessageBuilder.create()
                 .setListGamesAckPayload(true, undefined, metadatas)
+                .build()
         )
     }
 }

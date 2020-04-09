@@ -19,7 +19,7 @@ table LoginAckPayload {
 // Join/create request payload sent from client to server.
 table JoinGamePayload {
     createGame: bool;
-    inviteCode: string (required);
+    inviteCode: string;
 }
 
 struct Vec2 {
@@ -52,9 +52,11 @@ enum GameSessionStatus: byte {
 }
 
 table GameMetadata {
+    inviteCode: string (required);
     seatNumber: int; // Seat 0 and 1 are players, seat >= 2 are spectators.
     roster: [GameSessionPlayer] (required); // Players and spectators
     status: GameSessionStatus;
+
 }
 
 table GameSessionState {

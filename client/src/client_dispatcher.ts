@@ -1,9 +1,7 @@
-import {flatbuffers} from "flatbuffers"
-
 // Using a symlink to the shared directory in order to work around a parceljs bug:
 // https://github.com/parcel-bundler/parcel/issues/2978
 import {BlackBox as Buffers} from "./shared/src/protos/messages_generated"
-import {MessageBuilder, MessageDispatcher} from "./shared/src/messages"
+import {MessageBuilder, MessageDispatcher, GameMetadata} from "./shared/src/messages"
 import {UserLoginInfo, LocalStorageState} from "./localstorage"
 import {stateController, View} from "./dom"
 
@@ -46,12 +44,31 @@ dispatcher.register(
             const inviteCode = queryParams["invite"]
             console.log(`Invite code set (invite="${inviteCode}); attempting to join session`)
 
-            socket.send(MessageBuilder.create().setJoinGamePayload(false, inviteCode).build())
+            joinGame(false, inviteCode)
             return
         }
 
-        socket.send(MessageBuilder.create().setListGamesPayload().build())
-        stateController.setView(View.GameList)
+        listGames()
+    }
+)
+dispatcher.register(
+    Buffers.AnyPayload.ListGamesAckPayload,
+    Buffers.ListGamesAckPayload,
+    (state, payload: Buffers.ListGamesAckPayload) => {
+        if (!payload.success()) {
+            const failReason = payload.errorMessage()
+            console.error(`Failed to list games; reason: ${failReason}`)
+            return
+        }
+
+        const gameMetadatas: GameMetadata[] = []
+        for (let i = 0; i < payload.metadatasLength(); i++) {
+            const m = payload.metadatas(i)
+            gameMetadatas.push(GameMetadata.fromBuffer(m))
+        }
+
+        console.log(`Received ${gameMetadatas.length} game(s) from server`)
+        stateController.setState({gamesList: gameMetadatas})
     }
 )
 
@@ -77,4 +94,27 @@ function login(loginInfo: UserLoginInfo, register: boolean) {
     }
 }
 
-export {login}
+function joinGame(createGame = false, inviteCode?: string) {
+    if (createGame) {
+        console.log(`Joining new game`)
+    } else {
+        console.log(`Joining game: ${inviteCode}`)
+    }
+
+    stateController.setState({gameState: null})
+    stateController.setView(View.GamePlay)
+
+    socket.send(
+        MessageBuilder.create()
+            .setJoinGamePayload(createGame, inviteCode)
+            .build())
+}
+
+function listGames() {
+    console.log("Requesting current games list")
+
+    stateController.setView(View.GameList)
+    socket.send(MessageBuilder.create().setListGamesPayload().build())
+}
+
+export {login, joinGame}
