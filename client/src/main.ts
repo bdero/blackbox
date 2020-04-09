@@ -1,5 +1,5 @@
 import {initDom, stateController, View} from "./dom"
-import {login} from "./connection"
+import {login} from "./client_dispatcher"
 import {LocalStorageState} from "./localstorage"
 
 
@@ -10,7 +10,7 @@ window.addEventListener('DOMContentLoaded', (event) => {
     const loginInfo = LocalStorageState.getUserLogin()
     if (loginInfo.key === null) {
         console.log("No previous user on record; diaplaying registration form")
-        
+
         stateController.setView(View.Register)
         return
     }

@@ -30,7 +30,7 @@ dispatcher.register(
             const failReason = payload.errorMessage()
             console.error(`Login failed; reason: ${failReason}`)
             socket.close(undefined, "Login rejected")
-            
+
             stateController.setView(View.Register)
             stateController.setState({loggingIn: false})
             return
@@ -45,10 +45,12 @@ dispatcher.register(
         if ("invite" in queryParams) {
             const inviteCode = queryParams["invite"]
             console.log(`Invite code set (invite="${inviteCode}); attempting to join session`)
+
+            socket.send(MessageBuilder.create().setJoinGamePayload(false, inviteCode).build())
             return
         }
 
-        // TODO(bdero): If no invite code, attempt to list sessions
+        socket.send(MessageBuilder.create().setListGamesPayload().build())
         stateController.setView(View.GameList)
     }
 )

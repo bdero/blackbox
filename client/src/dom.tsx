@@ -1,6 +1,6 @@
 import * as React from "react"
 import * as ReactDOM from "react-dom"
-import {login} from "./connection"
+import {login} from "./client_dispatcher"
 
 enum View {
     Init,

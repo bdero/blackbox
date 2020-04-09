@@ -209,7 +209,7 @@ class MessageBuilder {
 
         Buffers.JoinGameAckPayload.startJoinGameAckPayload(this.builder)
         Buffers.JoinGameAckPayload.addSuccess(this.builder, success)
-        if (errorMessageOffset !== null) Buffers.JoinGameAckPayload.addErrorMessage(this.builder, errorMessage)
+        if (errorMessageOffset !== null) Buffers.JoinGameAckPayload.addErrorMessage(this.builder, errorMessageOffset)
         if (inviteCodeOffset !== null) Buffers.JoinGameAckPayload.addInviteCode(this.builder, inviteCodeOffset)
         if (gameStateOffset !== null) Buffers.JoinGameAckPayload.addGameState(this.builder, gameStateOffset)
 
