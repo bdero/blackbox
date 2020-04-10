@@ -1,0 +1,12 @@
+{
+    "sqltools.connections": [
+        {
+            "database": "${workspaceFolder}\\server/data/blackbox.db",
+            "dialect": "SQLite",
+            "isActive": false,
+            "isConnected": false,
+            "name": "blackbox"
+        }
+    ],
+    "sqltools.useNodeRuntime": true
+}
