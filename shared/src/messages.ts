@@ -42,12 +42,31 @@ class GameBoard {
 
         return result
     }
+
+    toNormalizedObject() {
+        return {
+            atomLocations:
+                this.atomLocations !== undefined ?
+                    this.atomLocations.map(a => {return {x: a.x, y: a.y}}) : null,
+            moves:
+                this.moves.map(m => {return {in: {x: m.in.x, y: m.in.y}, out: {x: m.out.x, y: m.out.y}}}),
+        }
+    }
+
+    static fromNormalizedObject(o: ReturnType<GameBoard['toNormalizedObject']>): GameBoard {
+        const result = new GameBoard()
+        result.atomLocations = o.atomLocations.map(a => new Vector2(a.x, a.y))
+        result.moves = o.moves.map(m => {
+            return {in: new Vector2(m.in.x, m.in.y), out: new Vector2(m.out.x, m.out.y)}
+        })
+        return result
+    }
 }
 
 class GameMetadata {
     public inviteCode: string
     public seatNumber?: number // Client only
-    public roster: {key?: string, username: string, online: boolean}[] // Keys are server only
+    public roster: {key?: string, username?: string, online?: boolean}[] // Keys are server only
     public status: Buffers.GameSessionStatus
 
     static fromBuffer(buffer: Buffers.GameMetadata): GameMetadata {
@@ -61,6 +80,22 @@ class GameMetadata {
         }
         result.status = buffer.status()
 
+        return result
+    }
+
+    toNormalizedObject() {
+        return {
+            inviteCode: this.inviteCode,
+            //roster: this.roster.filter(p => p !== undefined).map(p => p.key),
+            status: this.status,
+        }
+    }
+
+    static fromNormalizedObject(o: ReturnType<GameMetadata['toNormalizedObject']>): GameMetadata {
+        const result = new GameMetadata()
+        result.inviteCode = o.inviteCode,
+        //result.roster = o.roster.map(k => {return {key: k}})
+        result.status = o.status
         return result
     }
 }
@@ -78,6 +113,26 @@ class GameState {
         result.boardB = GameBoard.fromBuffer(buffer.boardB())
 
         return result
+    }
+
+    toNormalizedObject() {
+        return {
+            metadata: this.metadata.toNormalizedObject(),
+            boardA: this.boardA.toNormalizedObject(),
+            boardB: this.boardB.toNormalizedObject(),
+        }
+    }
+
+    static fromNormalizedObject(o: ReturnType<GameState['toNormalizedObject']>): GameState {
+        const result = new GameState()
+        result.metadata = GameMetadata.fromNormalizedObject(o.metadata)
+        result.boardA = GameBoard.fromNormalizedObject(o.boardA)
+        result.boardB = GameBoard.fromNormalizedObject(o.boardB)
+        return result
+    }
+
+    clone(): GameState {
+        return GameState.fromNormalizedObject(this.toNormalizedObject())
     }
 }
 

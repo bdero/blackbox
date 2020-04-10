@@ -28,6 +28,8 @@ wsServer.on("connection", (socket, request) => {
         }
         connection.log(`Socket connection id=${connection.getId()} closed with code "${code}"; reason: ${reason}`)
         connectionMap.delete(socket)
+
+        connection.logout()
     })
 })
 

@@ -60,6 +60,10 @@ GameSession.init({
         allowNull: false,
         defaultValue: DataTypes.NOW,
     },
+    gameState: {
+        type: DataTypes.STRING,
+        allowNull: false,
+    }
 }, {
     sequelize,
     modelName: "GameSession",
@@ -115,7 +119,7 @@ async function executeSubprocess(command: string, quiet: boolean = false) {
 async function sqliteDBInit() {
     const databaseLocation = path.join(databasePath, databaseFilename)
     console.log(`Initializing SQLite DB at location: ${databaseLocation}`)
-    
+
     if (!fs.existsSync(databasePath)) {
         console.log(`Database path "${databasePath}" doesn't exist; making directory...`)
         fs.mkdirSync(databasePath, {recursive: true})

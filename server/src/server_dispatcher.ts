@@ -1,9 +1,10 @@
 import WebSocket = require("ws")
 
 import {BlackBox as Buffers} from "./shared/src/protos/messages_generated"
-import {MessageBuilder, MessageDispatcher, GameMetadata} from "./shared/src/messages"
+import {MessageBuilder, MessageDispatcher, GameMetadata, GameState} from "./shared/src/messages"
 import {randomName} from "./shared/src/word_lists"
 import {sqliteDBInit, Player, GameSession, GameSessionSeat} from "./database"
+import { runInThisContext } from "vm"
 
 const BASE58_CHARS = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
 const BASE58_SET = new Set(BASE58_CHARS)
@@ -15,12 +16,128 @@ function generatePlayerKey(): string {
     return key
 }
 
+class Game {
+    static inviteCodeToGameIndex = new Map<String, Game>()
+
+    private model: GameSession
+    private gameState: GameState
+    private roster: Map<String, Player> // secretKeys to player
+    private subscribers: Set<Connection>
+    private dirty: boolean
+
+    private constructor() {
+        this.roster = new Map()
+        this.subscribers = new Set()
+        this.dirty = false
+    }
+
+    /**
+     * Build or fetch the in-memory game context. Returns `null` if the invite code doesn't match a game.
+     *
+     * This should only ever be used in a situation where a connection is trying to subscribe to a game.
+     * @param inviteCode
+     * @param newSubscriber
+     */
+    static async fromInviteCode(inviteCode: string, newSubscriber: Connection): Promise<Game | null> {
+        if (Game.inviteCodeToGameIndex.has(inviteCode)) {
+            const cachedGame = Game.inviteCodeToGameIndex.get(inviteCode)
+            cachedGame.subscribeConnection(newSubscriber)
+            return cachedGame
+        }
+
+        const gameSession: GameSession | null = await GameSession.findOne({
+            where: {
+                inviteCode: inviteCode
+            }
+        })
+        if (gameSession === null) return null
+
+        const jsonGameState = gameSession.get('gameState') as string
+        const gameStateObject = JSON.parse(jsonGameState)
+
+        const result = new Game()
+        result.model = gameSession
+        result.gameState = GameState.fromNormalizedObject(gameStateObject)
+        result.subscribeConnection(newSubscriber) // Also populates the roster
+
+        Game.inviteCodeToGameIndex.set(inviteCode, result)
+        return result
+    }
+
+    async refreshRoster() {
+        const seats = await (this.model as any).getGameSessionSeats() as GameSessionSeat[]
+        const orderedRoster: Player[] = new Array(seats.length)
+        seats.forEach(async s => {
+            const player = await (s as any).getPlayer() as Player
+            orderedRoster[s.get('seatNumber') as number] = player
+        })
+
+        this.gameState.metadata.roster = []
+        orderedRoster.forEach(p => {
+            const key = p.get('secretKey') as string
+            this.roster.set(key, p) // Update player map roster
+            // Update the flat roster (sent to clients)
+            this.gameState.metadata.roster.push({
+                key: key,
+                username: p.get('displayName') as string,
+                online: Connection.playerKeyToConnectionIndex.has(key),
+            })
+        })
+    }
+
+    async subscribeConnection(connection: Connection) {
+        if (!connection.isLoggedIn()) return
+
+        if (this.subscribers.has(connection)) return
+        this.subscribers.add(connection)
+
+        await GameSessionSeat.upsert({
+            seatNumber: this.roster.size,
+            GameSessionId: this.model.get('id') as number,
+            PlayerId: connection.playerModel.get('id') as number,
+        })
+        this.dirty = true
+
+        this.refreshRoster()
+        this.save()
+        this.publish()
+    }
+
+    async unsubscribeConnection(connection: Connection) {
+        if (!this.subscribers.has(connection)) return
+        this.subscribers.delete(connection)
+        // This shouldn't change anything in the database, so there's no need to save to the database.
+    }
+
+    getGameStateForConnection(connection: Connection): GameState | null {
+        if (!connection.isLoggedIn) return null
+
+        const result = this.gameState.clone()
+
+        return result
+    }
+
+    save() {
+        if (!this.dirty) return
+
+        this.dirty = false
+    }
+
+    publish() {
+
+    }
+}
+
 class Connection {
+    static playerKeyToConnectionIndex = new Map<string, Connection>()
+
     private static nextId = 0
     private connectionId: number;
 
     private socket: WebSocket
-    private playerModel: Player | null
+    private gameSubscriptions: Game[]
+
+    playerModel: Player | null
 
     constructor(socket: WebSocket) {
         this.connectionId = Connection.nextId
@@ -62,9 +179,7 @@ class Connection {
             this.log(`Received registration payload for "${username}"`)
             key = await this.register(username)
 
-            this.socket.send(MessageBuilder.create()
-                .setLoginAckPayload(true, undefined, username, key)
-                .build())
+            this.loginSuccessful(username, key)
             return
         }
 
@@ -83,12 +198,25 @@ class Connection {
         this.playerModel = player
 
         username = player.get('displayName') as string
+        this.loginSuccessful(username, key)
+    }
+
+    private loginSuccessful(username: string, key: string) {
+        Connection.playerKeyToConnectionIndex.set(key, this)
+
         this.log(`Login successful for "${key}" (username: "${username}")`)
         this.socket.send(
             MessageBuilder.create()
                 .setLoginAckPayload(true, undefined, username, key)
                 .build()
         )
+    }
+
+    logout() {
+        if (!this.isLoggedIn()) return
+
+        this.gameSubscriptions.forEach(s => s.unsubscribeConnection(this));
+        Connection.playerKeyToConnectionIndex.delete(this.playerModel.get('secretKey') as string)
     }
 
     private async register(username: string): Promise<string> {
@@ -110,7 +238,7 @@ class Connection {
         return key
     }
 
-    private isLoggedIn(): boolean {
+    isLoggedIn(): boolean {
         return this.playerModel != null
     }
 
@@ -142,6 +270,17 @@ class Connection {
                 .build()
         )
     }
+
+    async joinGame(joinPayload: Buffers.JoinGamePayload) {
+        if (joinPayload.createGame()) {
+            await this.createGame()
+            return
+        }
+    }
+
+    private async createGame() {
+
+    }
 }
 
 const dispatcher = new MessageDispatcher()
@@ -154,6 +293,11 @@ dispatcher.register(
     Buffers.AnyPayload.ListGamesPayload,
     Buffers.ListGamesPayload,
     (connection: Connection, payload: Buffers.ListGamesPayload) => connection.listGames()
+)
+dispatcher.register(
+    Buffers.AnyPayload.JoinGamePayload,
+    Buffers.JoinGamePayload,
+    (connection: Connection, payload: Buffers.JoinGamePayload) => connection.joinGame(payload)
 )
 
 const connectionMap: Map<WebSocket, Connection> = new Map()
