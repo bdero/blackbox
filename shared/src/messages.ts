@@ -1,4 +1,3 @@
-import WebSocket = require("ws")
 import {flatbuffers} from "flatbuffers"
 
 import {BlackBox as Buffers} from "./protos/messages_generated"
@@ -17,6 +16,14 @@ class GameBoard {
     public visible?: boolean // Client only
     public atomLocations?: Vector2[] // Hidden on gameboards not owned by the client
     public moves: {in: Vector2, out: Vector2}[]
+
+    private constructor() {}
+
+    static createNew(): GameBoard {
+        const gameBoard = new GameBoard()
+        gameBoard.moves = []
+        return gameBoard
+    }
 
     static fromBuffer(buffer: Buffers.GameBoard): GameBoard {
         const result = new GameBoard()
@@ -55,7 +62,7 @@ class GameBoard {
 
     static fromNormalizedObject(o: ReturnType<GameBoard['toNormalizedObject']>): GameBoard {
         const result = new GameBoard()
-        result.atomLocations = o.atomLocations.map(a => new Vector2(a.x, a.y))
+        if (o.atomLocations != null) result.atomLocations = o.atomLocations.map(a => new Vector2(a.x, a.y))
         result.moves = o.moves.map(m => {
             return {in: new Vector2(m.in.x, m.in.y), out: new Vector2(m.out.x, m.out.y)}
         })
@@ -69,10 +76,21 @@ class GameMetadata {
     public roster: {key?: string, username?: string, online?: boolean}[] // Keys are server only
     public status: Buffers.GameSessionStatus
 
+    private constructor() {}
+
+    static createNew(inviteCode: string): GameMetadata {
+        const metadata = new GameMetadata()
+        metadata.inviteCode = inviteCode
+        metadata.roster = []
+        metadata.status = Buffers.GameSessionStatus.SelectingAtoms
+        return metadata
+    }
+
     static fromBuffer(buffer: Buffers.GameMetadata): GameMetadata {
         const result = new GameMetadata()
 
-        result.seatNumber = buffer.seatNumber();
+        result.inviteCode = buffer.inviteCode()
+        result.seatNumber = buffer.seatNumber()
         result.roster = []
         for (let i = 0; i < buffer.rosterLength(); i++) {
             const rosterItem = buffer.roster(i)
@@ -86,7 +104,7 @@ class GameMetadata {
     toNormalizedObject() {
         return {
             inviteCode: this.inviteCode,
-            //roster: this.roster.filter(p => p !== undefined).map(p => p.key),
+            roster: this.roster.filter(p => p !== undefined).map(p => p.key),
             status: this.status,
         }
     }
@@ -94,8 +112,7 @@ class GameMetadata {
     static fromNormalizedObject(o: ReturnType<GameMetadata['toNormalizedObject']>): GameMetadata {
         const result = new GameMetadata()
         result.inviteCode = o.inviteCode,
-        //result.roster = o.roster.map(k => {return {key: k}})
-        result.status = o.status
+        result.roster = o.roster.map(k => {return {key: k}})
         return result
     }
 }
@@ -104,6 +121,16 @@ class GameState {
     public metadata: GameMetadata
     public boardA: GameBoard
     public boardB: GameBoard
+
+    private constructor() {}
+
+    static createNew(inviteCode: string): GameState {
+        const gameState = new GameState()
+        gameState.metadata = GameMetadata.createNew(inviteCode)
+        gameState.boardA = GameBoard.createNew()
+        gameState.boardB = GameBoard.createNew()
+        return gameState
+    }
 
     static fromBuffer(buffer: Buffers.GameSessionState): GameState {
         const result = new GameState()
@@ -163,19 +190,20 @@ class MessageBuilder {
         const inviteCodeOffset = this.createString(metadata.inviteCode);
 
         let rosterOffset: number | null = null
+        let players: number[] = []
         if (metadata.roster.length > 0) {
-            const players = metadata.roster.map(player => {
+            players = metadata.roster.map(player => {
                 const usernameOffset = this.createString(player.username)
                 Buffers.GameSessionPlayer.startGameSessionPlayer(this.builder)
                 Buffers.GameSessionPlayer.addUsername(this.builder, usernameOffset)
                 Buffers.GameSessionPlayer.addOnline(this.builder, player.online)
                 return Buffers.GameSessionPlayer.endGameSessionPlayer(this.builder)
             })
-            rosterOffset = Buffers.GameMetadata.createRosterVector(this.builder, players)
         }
+        rosterOffset = Buffers.GameMetadata.createRosterVector(this.builder, players)
 
         Buffers.GameMetadata.startGameMetadata(this.builder)
-        Buffers.GameMetadata.addInviteCode(this.builder, rosterOffset)
+        Buffers.GameMetadata.addInviteCode(this.builder, inviteCodeOffset)
         Buffers.GameMetadata.addSeatNumber(this.builder, metadata.seatNumber)
         if (rosterOffset !== null) Buffers.GameMetadata.addRoster(this.builder, rosterOffset)
         Buffers.GameMetadata.addStatus(this.builder, metadata.status)

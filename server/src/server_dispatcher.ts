@@ -4,11 +4,10 @@ import {BlackBox as Buffers} from "./shared/src/protos/messages_generated"
 import {MessageBuilder, MessageDispatcher, GameMetadata, GameState} from "./shared/src/messages"
 import {randomName} from "./shared/src/word_lists"
 import {sqliteDBInit, Player, GameSession, GameSessionSeat} from "./database"
-import { runInThisContext } from "vm"
 
 const BASE58_CHARS = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
 const BASE58_SET = new Set(BASE58_CHARS)
-function generatePlayerKey(): string {
+function generateKey(): string {
     let key = ""
     for (let i = 0; i < 64; i++) {
         key += BASE58_CHARS[Math.floor(Math.random() * BASE58_CHARS.length)]
@@ -19,8 +18,8 @@ function generatePlayerKey(): string {
 class Game {
     static inviteCodeToGameIndex = new Map<String, Game>()
 
+    gameState: GameState
     private model: GameSession
-    private gameState: GameState
     private roster: Map<String, Player> // secretKeys to player
     private subscribers: Set<Connection>
     private dirty: boolean
@@ -34,7 +33,7 @@ class Game {
     /**
      * Build or fetch the in-memory game context. Returns `null` if the invite code doesn't match a game.
      *
-     * This should only ever be used in a situation where a connection is trying to subscribe to a game.
+     * This should only ever be used in a situation where a connection is trying to subscribe to an existing game.
      * @param inviteCode
      * @param newSubscriber
      */
@@ -145,6 +144,7 @@ class Connection {
 
         this.socket = socket
         this.playerModel = null
+        this.gameSubscriptions = []
     }
 
     log(message: string) {
@@ -217,12 +217,15 @@ class Connection {
 
         this.gameSubscriptions.forEach(s => s.unsubscribeConnection(this));
         Connection.playerKeyToConnectionIndex.delete(this.playerModel.get('secretKey') as string)
+
+        // TODO(bdero): Loop through all games this connection is a part of and remove and remove the game from Game.inviteCodeToGameIndex
+        // if 0 players are online
     }
 
     private async register(username: string): Promise<string> {
         let key: string = null
         while (key === null) {
-            const newKey = generatePlayerKey()
+            const newKey = `p${generateKey()}`
             const count = await Player.count({
                 where: {secretKey: newKey}
             })
@@ -243,9 +246,8 @@ class Connection {
     }
 
     private async createMetadataFromSessionModel(gameSession: GameSession): Promise<GameMetadata> {
-        const result = new GameMetadata()
-        // TODO(bdero): Populate the game metadata
-        return result
+        const gameState = JSON.parse(gameSession.get('gameState') as string)
+        return GameState.fromNormalizedObject(gameState).metadata
     }
 
     async listGames() {
@@ -272,14 +274,49 @@ class Connection {
     }
 
     async joinGame(joinPayload: Buffers.JoinGamePayload) {
+        let inviteCode: string
         if (joinPayload.createGame()) {
-            await this.createGame()
-            return
+            inviteCode = await this.createGame()
+        } else {
+            inviteCode = joinPayload.inviteCode()
         }
+
+        const game = await Game.fromInviteCode(inviteCode, this)
+        if (game === null) {
+            this.logError(`Requested to join game for nonexistent invite code: ${inviteCode}`)
+            this.socket.send(
+                MessageBuilder.create()
+                    .setJoinGameAckPayload(false, "Game session not found")
+                    .build()
+            )
+        }
+        this.socket.send(
+            MessageBuilder.create()
+                .setJoinGameAckPayload(true, undefined, inviteCode, game.gameState)
+                .build()
+        )
     }
 
-    private async createGame() {
-
+    private async createGame(): Promise<string> {
+        let key: string = null
+        while (key === null) {
+            const newKey = `g${generateKey()}`
+            const count = await GameSession.count({
+                where: {inviteCode: newKey}
+            })
+            if (count === 0) {
+                key = newKey
+            }
+        }
+        this.log(`Creating new game with invite key "${key}"`)
+        const gameState = GameState.createNew(key).toNormalizedObject()
+        const serializedGameState = JSON.stringify(gameState)
+        // TODO(bdero): What happens when this fails? Does sequelize throw an exception that needs to be caught?
+        await GameSession.create({
+            inviteCode: key,
+            gameState: serializedGameState,
+        })
+        return key
     }
 }
 

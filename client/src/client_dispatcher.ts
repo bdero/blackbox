@@ -1,7 +1,7 @@
 // Using a symlink to the shared directory in order to work around a parceljs bug:
 // https://github.com/parcel-bundler/parcel/issues/2978
 import {BlackBox as Buffers} from "./shared/src/protos/messages_generated"
-import {MessageBuilder, MessageDispatcher, GameMetadata} from "./shared/src/messages"
+import {MessageBuilder, MessageDispatcher, GameMetadata, GameState} from "./shared/src/messages"
 import {UserLoginInfo, LocalStorageState} from "./localstorage"
 import {stateController, View} from "./dom"
 
@@ -69,6 +69,22 @@ dispatcher.register(
 
         console.log(`Received ${gameMetadatas.length} game(s) from server`)
         stateController.setState({gamesList: gameMetadatas})
+    }
+)
+dispatcher.register(
+    Buffers.AnyPayload.JoinGameAckPayload,
+    Buffers.JoinGameAckPayload,
+    (state, payload: Buffers.JoinGameAckPayload) => {
+        if (!payload.success()) {
+            const failReason = payload.errorMessage()
+            console.error(`Failed to join game; reason: ${failReason}`)
+            listGames()
+            return
+        }
+
+        console.log(`Join game successful`)
+        const gameState = GameState.fromBuffer(payload.gameState())
+        stateController.setState({gameState})
     }
 )
 

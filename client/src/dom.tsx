@@ -98,9 +98,15 @@ class GameListView extends React.Component<{gamesList: GameMetadata[]}> {
         }
 
         const listItems: JSX.Element[] = this.props.gamesList.map(
-            g => <GameListItem game={g} />
+            g => <GameListItem key={g.inviteCode} game={g} />
         )
-        return <table>{listItems}</table>
+        return (
+            <table>
+                <tbody>
+                    {listItems}
+                </tbody>
+            </table>
+        )
     }
 
     render() {
@@ -113,9 +119,12 @@ class GameListView extends React.Component<{gamesList: GameMetadata[]}> {
     }
 }
 
-class GamePlayView extends React.Component {
+class GamePlayView extends React.Component<{gameState: GameState}> {
     render() {
-        return <div>Game play view</div>
+        if (this.props.gameState === null) {
+            return <div>No game loaded</div>
+        }
+        return <div>Game loaded!</div>
     }
 }
 
@@ -149,7 +158,7 @@ class Root extends React.Component<{}, RenderState> {
                     />
                 )
             case View.GamePlay:
-                return <GamePlayView />
+                return <GamePlayView gameState={this.state.gameState} />
             default:
                 return <InitView />
         }
