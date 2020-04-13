@@ -30,8 +30,17 @@ class StateController {
         this.stateSetter(data)
     }
 
-    setView(view: View) {
+    setView(view: View, params: Object = {}) {
         this.stateSetter({currentView: view})
+
+        const currentLocation = window.location.href
+        const [urlBase] = currentLocation.split("?")
+
+        const queryParams = new URLSearchParams()
+        Object.keys(params).forEach(k => queryParams.set(k, params[k]))
+        const queryString = queryParams.toString()
+        const urlParams = queryString ? `?${queryString}` : ""
+        window.history.replaceState('', '', `${urlBase}${urlParams}`)
     }
 }
 const stateController = new StateController()
@@ -77,11 +86,22 @@ class RegisterView extends React.Component<{username: string, loggingIn: boolean
 }
 
 class GameListItem extends React.Component<{game: GameMetadata}> {
+    constructor(props) {
+        super(props)
+
+        this.joinGameClicked = this.joinGameClicked.bind(this)
+    }
+
+    joinGameClicked() {
+        joinGame(false, this.props.game.inviteCode)
+    }
+
     render() {
         return (
             <tr>
                 <td>{this.props.game.status}</td>
                 <td>{this.props.game.inviteCode}</td>
+                <td><button onClick={this.joinGameClicked}>Join game</button></td>
             </tr>
         )
     }

@@ -84,6 +84,8 @@ dispatcher.register(
 
         console.log(`Join game successful`)
         const gameState = GameState.fromBuffer(payload.gameState())
+
+        stateController.setView(View.GamePlay, {invite: gameState.metadata.inviteCode})
         stateController.setState({gameState})
     }
 )
@@ -118,7 +120,6 @@ function joinGame(createGame = false, inviteCode?: string) {
     }
 
     stateController.setState({gameState: null})
-    stateController.setView(View.GamePlay)
 
     socket.send(
         MessageBuilder.create()
