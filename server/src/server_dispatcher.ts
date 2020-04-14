@@ -20,7 +20,7 @@ class Game {
 
     gameState: GameState
     private model: GameSession
-    private roster: Map<String, Player> // secretKeys to player
+    private roster: Map<String, {player: Player, seatNumber: number}> // secretKeys to player
     private subscribers: Set<Connection>
     private dirty: boolean
 
@@ -72,9 +72,9 @@ class Game {
         })
 
         this.gameState.metadata.roster = []
-        orderedRoster.forEach(p => {
+        orderedRoster.forEach((p, i) => {
             const key = p.get('secretKey') as string
-            this.roster.set(key, p) // Update player map roster
+            this.roster.set(key, {player: p, seatNumber: i}) // Update player map roster
             // Update the flat roster (sent to clients)
             this.gameState.metadata.roster.push({
                 key: key,
@@ -112,7 +112,6 @@ class Game {
         if (!connection.isLoggedIn) return null
 
         const result = this.gameState.clone()
-
         return result
     }
 
@@ -274,6 +273,15 @@ class Connection {
     }
 
     async joinGame(joinPayload: Buffers.JoinGamePayload) {
+        if (!this.isLoggedIn()) {
+            this.logError("Requested to join game, but the connection is not logged in")
+            this.socket.send(
+                MessageBuilder.create()
+                    .setJoinGameAckPayload(false, "Not logged in")
+                    .build()
+            )
+            return
+        }
         let inviteCode: string
         if (joinPayload.createGame()) {
             inviteCode = await this.createGame()
@@ -292,7 +300,7 @@ class Connection {
         }
         this.socket.send(
             MessageBuilder.create()
-                .setJoinGameAckPayload(true, undefined, inviteCode, game.gameState)
+                .setJoinGameAckPayload(true, undefined, inviteCode, game.getGameStateForConnection(this))
                 .build()
         )
     }
