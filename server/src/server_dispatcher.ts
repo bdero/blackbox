@@ -40,7 +40,7 @@ class Game {
     static async fromInviteCode(inviteCode: string, newSubscriber: Connection): Promise<Game | null> {
         if (Game.inviteCodeToGameIndex.has(inviteCode)) {
             const cachedGame = Game.inviteCodeToGameIndex.get(inviteCode)
-            cachedGame.subscribeConnection(newSubscriber)
+            await cachedGame.subscribeConnection(newSubscriber)
             return cachedGame
         }
 
@@ -57,7 +57,7 @@ class Game {
         const result = new Game()
         result.model = gameSession
         result.gameState = GameState.fromNormalizedObject(gameStateObject)
-        result.subscribeConnection(newSubscriber) // Also populates the roster
+        await result.subscribeConnection(newSubscriber) // Also populates the roster
 
         Game.inviteCodeToGameIndex.set(inviteCode, result)
         return result
@@ -66,10 +66,13 @@ class Game {
     async refreshRoster() {
         const seats = await (this.model as any).getGameSessionSeats() as GameSessionSeat[]
         const orderedRoster: Player[] = new Array(seats.length)
-        seats.forEach(async s => {
-            const player = await (s as any).getPlayer() as Player
-            orderedRoster[s.get('seatNumber') as number] = player
-        })
+
+        // Note: Array.forEach cannot await async functions
+        for (let i = 0; i < seats.length; i++) {
+            const seat = seats[i]
+            const player = await (seat as any).getPlayer() as Player
+            orderedRoster[seat.get('seatNumber') as number] = player
+        }
 
         this.gameState.metadata.roster = []
         orderedRoster.forEach((p, i) => {
@@ -97,9 +100,9 @@ class Game {
         })
         this.dirty = true
 
-        this.refreshRoster()
-        this.save()
-        this.publish()
+        await this.refreshRoster()
+        await this.save()
+        await this.publish()
     }
 
     async unsubscribeConnection(connection: Connection) {
@@ -109,20 +112,58 @@ class Game {
     }
 
     getGameStateForConnection(connection: Connection): GameState | null {
-        if (!connection.isLoggedIn) return null
+        if (!connection.isLoggedIn()) {
+            connection.logError("Attempted to get specialized game state, but the connection has no logged in player")
+            return null
+        }
+        if (!this.roster.has(connection.playerKey)) {
+            connection.logError("Attempted to get specialized game state, but the connection's player is not in the roster")
+            return null
+        }
+        const rosterEntry = this.roster.get(connection.playerKey)
 
         const result = this.gameState.clone()
+        if (result.metadata.status == Buffers.GameSessionStatus.PlayerAWin
+            || result.metadata.status == Buffers.GameSessionStatus.PlayerBWin) {
+            // Don't occlude any state if the game has been won
+            return result
+        }
+
+        result.metadata.seatNumber = rosterEntry.seatNumber
+        if (rosterEntry.seatNumber == 0) {
+            // Player A: Can't see Board B
+            result.boardA.visible = true
+            result.boardB.visible = false
+            result.boardB.atomLocations = undefined
+        } else if (rosterEntry.seatNumber == 1) {
+            // Player B: Can't see Board A
+            result.boardB.visible = true
+            result.boardA.visible = false
+            result.boardA.atomLocations = undefined
+        } else {
+            // Spectators can't see either players' boards
+            result.boardA.visible = false
+            result.boardB.visible = false
+            result.boardA.atomLocations = undefined
+            result.boardB.atomLocations = undefined
+        }
         return result
     }
 
-    save() {
+    async save() {
         if (!this.dirty) return
+
+        const serializedGameState = JSON.stringify(this.gameState.toNormalizedObject())
+        await this.model.update({gameState: serializedGameState})
 
         this.dirty = false
     }
 
-    publish() {
-
+    async publish() {
+        this.subscribers.forEach(c => {
+            const newState = this.getGameStateForConnection(c)
+            // TODO(bdero): Send update game state payload
+        })
     }
 }
 
@@ -136,6 +177,7 @@ class Connection {
     private gameSubscriptions: Game[]
 
     playerModel: Player | null
+    playerKey: string | null
 
     constructor(socket: WebSocket) {
         this.connectionId = Connection.nextId
@@ -202,6 +244,7 @@ class Connection {
 
     private loginSuccessful(username: string, key: string) {
         Connection.playerKeyToConnectionIndex.set(key, this)
+        this.playerKey = key
 
         this.log(`Login successful for "${key}" (username: "${username}")`)
         this.socket.send(
