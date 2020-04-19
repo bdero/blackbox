@@ -159,7 +159,13 @@ class GameState {
     }
 
     clone(): GameState {
-        return GameState.fromNormalizedObject(this.toNormalizedObject())
+        const prevRoster = this.metadata.roster
+        const result = GameState.fromNormalizedObject(this.toNormalizedObject())
+        // When cloning, denormalized fields need to be copied.
+        result.metadata.roster = prevRoster.map(r => {
+            return {key: r.key, username: r.username, online: r.online}
+        })
+        return result
     }
 }
 
