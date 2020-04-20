@@ -14,6 +14,7 @@ class Vector2 {
 
 class GameBoard {
     public visible?: boolean // Client only
+    public atomsSubmitted: boolean
     public atomLocations?: Vector2[] // Hidden on gameboards not owned by the client
     public moves: {in: Vector2, out: Vector2}[]
 
@@ -21,6 +22,7 @@ class GameBoard {
 
     static createNew(): GameBoard {
         const gameBoard = new GameBoard()
+        gameBoard.atomsSubmitted = false
         gameBoard.moves = []
         return gameBoard
     }
@@ -29,6 +31,7 @@ class GameBoard {
         const result = new GameBoard()
 
         result.visible = buffer.visible()
+        result.atomsSubmitted = buffer.atomsSubmitted()
         result.atomLocations = []
         for (let i = 0; i < buffer.atomLocationsLength(); i++) {
             const location = buffer.atomLocations(i)
@@ -55,6 +58,7 @@ class GameBoard {
             atomLocations:
                 this.atomLocations !== undefined ?
                     this.atomLocations.map(a => {return {x: a.x, y: a.y}}) : null,
+            atomsSubmitted: this.atomsSubmitted,
             moves:
                 this.moves.map(m => {return {in: {x: m.in.x, y: m.in.y}, out: {x: m.out.x, y: m.out.y}}}),
         }
@@ -63,6 +67,7 @@ class GameBoard {
     static fromNormalizedObject(o: ReturnType<GameBoard['toNormalizedObject']>): GameBoard {
         const result = new GameBoard()
         if (o.atomLocations != null) result.atomLocations = o.atomLocations.map(a => new Vector2(a.x, a.y))
+        result.atomsSubmitted = o.atomsSubmitted
         result.moves = o.moves.map(m => {
             return {in: new Vector2(m.in.x, m.in.y), out: new Vector2(m.out.x, m.out.y)}
         })
@@ -231,6 +236,7 @@ class MessageBuilder {
 
         Buffers.GameBoard.startGameBoard(this.builder)
         Buffers.GameBoard.addVisible(this.builder, gameBoard.visible)
+        Buffers.GameBoard.addAtomsSubmitted(this.builder, gameBoard.atomsSubmitted)
         if (atomLocationsOffset !== null) Buffers.GameBoard.addAtomLocations(this.builder, atomLocationsOffset)
         Buffers.GameBoard.addMoves(this.builder, movesOffset)
 
@@ -334,6 +340,61 @@ class MessageBuilder {
         if (errorMessageOffset !== null) Buffers.ListGamesAckPayload.addErrorMessage(this.builder, errorMessageOffset)
 
         this.payloadOffset = Buffers.ListGamesAckPayload.endListGamesAckPayload(this.builder)
+        return this
+    }
+
+    setUpdateGamePayload(gameState: GameState) {
+        this.payloadType = Buffers.AnyPayload.UpdateGamePayload
+
+        const gameStateOffset = gameState !== undefined ? this.createGameState(gameState) : null
+
+        Buffers.UpdateGamePayload.startUpdateGamePayload(this.builder)
+        if (gameStateOffset !== null) Buffers.UpdateGamePayload.addGameState(this.builder, gameStateOffset)
+
+        this.payloadOffset = Buffers.UpdateGamePayload.endUpdateGamePayload(this.builder)
+        return this
+    }
+
+    setSetAtomsPayload(atoms: Vector2[]) {
+        this.payloadType = Buffers.AnyPayload.SetAtomsPayload
+
+        Buffers.SetAtomsPayload.startAtomLocationsVector(this.builder, atoms.length)
+        atoms.forEach(a => {
+            Buffers.Vec2.createVec2(this.builder, a.x, a.y)
+        })
+        const atomLocationsVectorOffset: number = this.builder.endVector()
+
+        Buffers.SetAtomsPayload.startSetAtomsPayload(this.builder)
+        Buffers.SetAtomsPayload.addAtomLocations(this.builder, atomLocationsVectorOffset)
+
+        this.payloadOffset = Buffers.SetAtomsPayload.endSetAtomsPayload(this.builder)
+        return this
+    }
+
+    setSubmitMovePayload(move: Vector2) {
+        this.payloadType = Buffers.AnyPayload.SubmitMovePayload
+
+        Buffers.SubmitMovePayload.startSubmitMovePayload(this.builder)
+        Buffers.SubmitMovePayload.addMove(
+            this.builder, Buffers.Vec2.createVec2(this.builder, move.x, move.y))
+
+        this.payloadOffset = Buffers.SubmitMovePayload.endSubmitMovePayload(this.builder)
+        return this
+    }
+
+    setSubmitSolutionPayload(atoms: Vector2[]) {
+        this.payloadType = Buffers.AnyPayload.SubmitSolutionPayload
+
+        Buffers.SubmitSolutionPayload.startAtomLocationsVector(this.builder, atoms.length)
+        atoms.forEach(a => {
+            Buffers.Vec2.createVec2(this.builder, a.x, a.y)
+        })
+        const atomLocationsVectorOffset: number = this.builder.endVector()
+
+        Buffers.SubmitSolutionPayload.startSubmitSolutionPayload(this.builder)
+        Buffers.SubmitSolutionPayload.addAtomLocations(this.builder, atomLocationsVectorOffset)
+
+        this.payloadOffset = Buffers.SubmitSolutionPayload.endSubmitSolutionPayload(this.builder)
         return this
     }
 

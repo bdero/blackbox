@@ -1,13 +1,13 @@
 namespace BlackBox;
 
-// Initial login/registration payload sent from client to server.
+// Client->Server - Initial login/registration payload.
 table LoginPayload {
     register: bool;
     username: string (required);
     key: string;
 }
 
-// Login/registration response payload sent from server to client.
+// Server->Client - Login/registration response payload.
 // If success==false then errorMessage is populated with a failure reason.
 table LoginAckPayload {
     success: bool;
@@ -16,7 +16,7 @@ table LoginAckPayload {
     key: string;
 }
 
-// Join/create request payload sent from client to server.
+// Client->Server - Join/create request payload.
 table JoinGamePayload {
     createGame: bool;
     inviteCode: string;
@@ -34,6 +34,7 @@ struct BoardMove {
 
 table GameBoard {
     visible: bool;
+    atomsSubmitted: bool;
     atomLocations: [Vec2]; // Atom locations are not sent to opposing players or spectators until the game is over.
     moves: [BoardMove] (required);
 }
@@ -65,7 +66,7 @@ table GameSessionState {
     boardB: GameBoard (required);
 }
 
-// Join/create response payload sent from server to client.
+// Server->Client - Join/create response payload.
 // If success==false then errorMessage is populated with a failure reason.
 table JoinGameAckPayload {
     success: bool;
@@ -74,20 +75,43 @@ table JoinGameAckPayload {
     gameState: GameSessionState;
 }
 
-// List games request payload sent from client to server.
+// Client->Server - List games request payload.
 table ListGamesPayload {}
 
-// List games response payload sent from server to client.
+// Server->Client - List games response payload.
 table ListGamesAckPayload {
     success: bool;
     errorMessage: string;
     metadatas: [GameMetadata];
 }
 
+// Server->Client - Game state sync payload.
+// Data is occluded based on the connection context.
+table UpdateGamePayload {
+    gameState: GameSessionState;
+}
+
+// Client->Server - Submit atom locations (done by both players at the beginning)
+table SetAtomsPayload {
+    atomLocations: [Vec2];
+}
+
+// Client->Server - Submit a move input
+table SubmitMovePayload {
+    move: Vec2;
+}
+
+// Client->Server - Submit a solution guess
+table SubmitSolutionPayload {
+    atomLocations: [Vec2];
+}
+
 union AnyPayload {
     LoginPayload, LoginAckPayload,
     JoinGamePayload, JoinGameAckPayload,
     ListGamesPayload, ListGamesAckPayload,
+    UpdateGamePayload,
+    SetAtomsPayload, SubmitMovePayload, SubmitSolutionPayload,
 }
 
 table Message {
