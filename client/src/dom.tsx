@@ -18,16 +18,29 @@ type RenderState = {
     gameState: GameState | null,
 }
 type StateSetter = (stateTransform: {[key: string]: any} | ((previousState: RenderState) => RenderState)) => void
+type StateGetter = () => RenderState
 
 class StateController {
     stateSetter: StateSetter
+    stateGetter: StateGetter
 
-    registerState(stateSetter: StateSetter) {
+    registerState(stateSetter: StateSetter, stateGetter: StateGetter) {
         this.stateSetter = stateSetter
+        this.stateGetter = stateGetter
     }
 
     setState(data: {[key: string]: any}) {
         this.stateSetter(data)
+    }
+
+    getState(): RenderState {
+        return this.stateGetter()
+    }
+
+    getCurrentInviteCode(): string | null {
+        const state = this.getState()
+        if (state.gameState === null) return null
+        return state.gameState.metadata.inviteCode
     }
 
     setView(view: View, params: Object = {}) {
@@ -275,7 +288,7 @@ class Root extends React.Component<{}, RenderState> {
         }
     }
     componentDidMount() {
-        stateController.registerState(this.setState.bind(this))
+        stateController.registerState(this.setState.bind(this), () => this.state)
     }
     render() {
         switch (this.state.currentView) {

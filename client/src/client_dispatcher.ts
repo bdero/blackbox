@@ -89,6 +89,28 @@ dispatcher.register(
         stateController.setState({gameState})
     }
 )
+dispatcher.register(
+    Buffers.AnyPayload.UpdateGamePayload,
+    Buffers.UpdateGamePayload,
+    (state, payload: Buffers.UpdateGamePayload) => {
+        const newState = GameState.fromBuffer(payload.gameState())
+        const currentInviteCode = stateController.getCurrentInviteCode()
+        if (currentInviteCode === null) {
+            console.error(
+                `Received update message for game \`${newState.metadata.inviteCode}\`, but there is currently no active game running.`)
+            return
+        }
+        if (currentInviteCode !== newState.metadata.inviteCode) {
+            console.log(
+                `Received update message for game \`${newState.metadata.inviteCode}\`, but the current active game is: ${currentInviteCode}`)
+            // TODO(bdero): Update the game state entry with the new metadata (which will in-turn keep the status of all currently subscribed
+            // games up-to-date).
+            return
+        }
+
+        stateController.setState({gameState: newState})
+    }
+)
 
 function login(loginInfo: UserLoginInfo, register: boolean) {
     if (socket !== null) {

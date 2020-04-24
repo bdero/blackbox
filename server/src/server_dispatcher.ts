@@ -3,7 +3,7 @@ import WebSocket = require("ws")
 import {BlackBox as Buffers} from "./shared/src/protos/messages_generated"
 import {MessageBuilder, MessageDispatcher, GameMetadata, GameState} from "./shared/src/messages"
 import {randomName} from "./shared/src/word_lists"
-import {sqliteDBInit, Player, GameSession, GameSessionSeat} from "./database"
+import {Player, GameSession, GameSessionSeat} from "./database"
 
 const BASE58_CHARS = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
 const BASE58_SET = new Set(BASE58_CHARS)
@@ -162,7 +162,7 @@ class Game {
     async publish() {
         this.subscribers.forEach(c => {
             const newState = this.getGameStateForConnection(c)
-            // TODO(bdero): Send update game state payload
+            c.sendUpdate(newState)
         })
     }
 }
@@ -368,6 +368,14 @@ class Connection {
             gameState: serializedGameState,
         })
         return key
+    }
+
+    public async sendUpdate(newState: GameState) {
+        this.socket.send(
+            MessageBuilder.create()
+                .setUpdateGamePayload(newState)
+                .build()
+        )
     }
 }
 
