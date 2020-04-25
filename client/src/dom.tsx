@@ -1,7 +1,7 @@
 import * as React from "react"
 import * as ReactDOM from "react-dom"
 
-import {login, joinGame} from "./client_dispatcher"
+import {login, joinGame, loginInfo} from "./client_dispatcher"
 import {Vector2, GameMetadata, GameState, GameBoard} from "./shared/src/messages"
 
 enum View {
@@ -153,41 +153,73 @@ class GameListView extends React.Component<{gamesList: GameMetadata[]}> {
 }
 
 class GamePlayView extends React.Component<{gameState: GameState}> {
+    constructor(props) {
+        super(props)
+
+        this.isCurrentPlayer = this.isCurrentPlayer.bind(this)
+        this.getPlayerDisplay = this.getPlayerDisplay.bind(this)
+
+    }
+
+    isCurrentPlayer(playerIndex: number): boolean {
+        if (playerIndex >= this.props.gameState.metadata.roster.length) return false
+        if (this.props.gameState.metadata.seatNumber !== playerIndex) return false
+        return true
+    }
+
+    getPlayerDisplay(playerIndex: number) {
+        const hasPlayerJoined = playerIndex < this.props.gameState.metadata.roster.length
+        const isCurrentPlayer = this.isCurrentPlayer(playerIndex)
+
+        let playerName = hasPlayerJoined ? this.props.gameState.metadata.roster[playerIndex].username : "MISSINGNO."
+        if (isCurrentPlayer) playerName += " 🕹️"
+        const playerTitle = hasPlayerJoined ? playerName : "No opponent has joined! 😧"
+
+        let inviteLink: JSX.Element | null = null
+        if (!hasPlayerJoined) {
+            inviteLink = (
+                <div className="invite-link-container">
+                    <div>
+                        Invite link <input type="text" value={window.location.toString()} readOnly/>
+                    </div>
+                </div>
+            )
+        }
+
+        return (
+            <div className="game-player-container">
+                <div className="game-player-header">
+                    {playerTitle}
+                </div>
+                <div className="game-board-container">
+                    <GameBoardComponent
+                        gameBoard={this.props.gameState.boardB}
+                        isCurrentPlayer={isCurrentPlayer}
+                        isJoined={hasPlayerJoined} />
+                    {inviteLink}
+                </div>
+            </div>
+        )
+    }
+
     render() {
         if (this.props.gameState === null) {
             return <div>No game loaded</div>
         }
 
-        let boardBHeader = (
-            <div className="game-player-header">
-                Invite link: <input type="text" value={window.location.toString()} readOnly/>
-            </div>
-        )
-        if (this.props.gameState.metadata.roster.length >= 2) {
-            boardBHeader = <div className="game-player-header">{this.props.gameState.metadata.roster[1].username}</div>
-        }
         return (
-            <div>
-                <div className="game-player-container">
-                    <div className="game-player-header">{this.props.gameState.metadata.roster[0].username}</div>
-                    <GameBoardComponent gameBoard={this.props.gameState.boardA} />
-                </div>
-                <div className="game-player-container">
-                    {boardBHeader}
-                    <GameBoardComponent gameBoard={this.props.gameState.boardB} />
-                </div>
+            <div className="game-container">
+                {this.getPlayerDisplay(0)}
+                {this.getPlayerDisplay(1)}
             </div>
         )
     }
 }
 
-class GameBoardComponent extends React.Component<{gameBoard: GameBoard}, {rayCoords: null | Vector2}> {
+class GameBoardComponent extends React.Component<{gameBoard: GameBoard, isCurrentPlayer: boolean, isJoined: boolean},{rayCoords: null | Vector2}> {
     static readonly CELL_SIZE: number = 100;
     static readonly CELL_BORDER_SIZE: number = 3;
     static readonly BOARD_SIZE: number = 500;
-
-    static defaultProps = {
-    }
 
     constructor(props) {
         super(props)
@@ -279,6 +311,7 @@ class GameBoardComponent extends React.Component<{gameBoard: GameBoard}, {rayCoo
 class Root extends React.Component<{}, RenderState> {
     constructor(props) {
         super(props)
+
         this.state = {
             currentView: View.Init,
             username: "",
@@ -286,11 +319,15 @@ class Root extends React.Component<{}, RenderState> {
             gamesList: [],
             gameState: null,
         }
+
+        this.getView = this.getView.bind(this)
     }
+
     componentDidMount() {
         stateController.registerState(this.setState.bind(this), () => this.state)
     }
-    render() {
+
+    getView(): JSX.Element {
         switch (this.state.currentView) {
             case View.Register:
                 return (
@@ -310,6 +347,15 @@ class Root extends React.Component<{}, RenderState> {
             default:
                 return <InitView />
         }
+    }
+
+    render() {
+
+        return (
+            <div className="main-container">
+                {this.getView()}
+            </div>
+        )
     }
 }
 

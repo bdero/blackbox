@@ -93,12 +93,14 @@ class Game {
         if (this.subscribers.has(connection)) return
         this.subscribers.add(connection)
 
-        await GameSessionSeat.upsert({
-            seatNumber: this.roster.size,
-            GameSessionId: this.model.get('id') as number,
-            PlayerId: connection.playerModel.get('id') as number,
-        })
-        this.dirty = true
+        if (!this.roster.get(connection.playerKey)) {
+            await GameSessionSeat.upsert({
+                seatNumber: this.roster.size,
+                GameSessionId: this.model.get('id') as number,
+                PlayerId: connection.playerModel.get('id') as number,
+            })
+            this.dirty = true
+        }
 
         await this.refreshRoster()
         await this.save()

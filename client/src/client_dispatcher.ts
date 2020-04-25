@@ -17,6 +17,7 @@ function parseQueryParameters(): {[key: string]: string} {
     return urlParameters
 }
 
+let loginInfo: UserLoginInfo | null = null
 let socket: WebSocket | null = null
 
 const dispatcher = new MessageDispatcher();
@@ -36,6 +37,8 @@ dispatcher.register(
         const key = payload.key()
         const username = payload.username()
         LocalStorageState.setUserLogin(key, username)
+
+        loginInfo = {key, username}
         console.log(`Login successful: key="${key}"; username="${username}"`)
 
         // TODO(bdero): If invite code set, attempt to join game session
@@ -127,6 +130,7 @@ function login(loginInfo: UserLoginInfo, register: boolean) {
                 .build())
     }
     socket.onclose = (event) => {
+        loginInfo = null
         console.log(`Socket connection closed with code "${event.code}"; reason: ${event.reason}`)
     }
     socket.onmessage = (event) => {
@@ -156,4 +160,4 @@ function listGames() {
     socket.send(MessageBuilder.create().setListGamesPayload().build())
 }
 
-export {login, joinGame}
+export {login, joinGame, loginInfo}
