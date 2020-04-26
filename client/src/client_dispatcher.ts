@@ -30,7 +30,7 @@ dispatcher.register(
             console.error(`Login failed; reason: ${failReason}`)
             socket.close(undefined, "Login rejected")
 
-            stateController.setView(View.Register)
+            stateController.setView(View.Register, true)
             stateController.setState({loggingIn: false})
             return
         }
@@ -88,7 +88,7 @@ dispatcher.register(
         console.log(`Join game successful`)
         const gameState = GameState.fromBuffer(payload.gameState())
 
-        stateController.setView(View.GamePlay, {invite: gameState.metadata.inviteCode})
+        stateController.setView(View.GamePlay, true, {invite: gameState.metadata.inviteCode})
         stateController.setState({gameState})
     }
 )
@@ -156,7 +156,7 @@ function joinGame(createGame = false, inviteCode?: string) {
 function listGames() {
     console.log("Requesting current games list")
 
-    stateController.setView(View.GameList)
+    stateController.setView(View.GameList, true)
     socket.send(MessageBuilder.create().setListGamesPayload().build())
 }
 

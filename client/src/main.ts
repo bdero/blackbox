@@ -11,7 +11,7 @@ window.addEventListener('DOMContentLoaded', (event) => {
     if (loginInfo.key === null) {
         console.log("No previous user on record; diaplaying registration form")
 
-        stateController.setView(View.Register)
+        stateController.setView(View.Register, false)
         return
     }
     console.log(`Stored user info found: key="${loginInfo.key}"; username="${loginInfo.username}; logging in"`)

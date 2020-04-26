@@ -43,8 +43,10 @@ class StateController {
         return state.gameState.metadata.inviteCode
     }
 
-    setView(view: View, params: Object = {}) {
+    setView(view: View, updateParams: boolean = true, params: Object = {}) {
         this.stateSetter({currentView: view})
+
+        if (updateParams === false) return
 
         const currentLocation = window.location.href
         const [urlBase] = currentLocation.split("?")
