@@ -1,4 +1,4 @@
-import {initDom} from "./dom"
+import {initDom} from "./dom/root"
 import {stateController, View} from "./state_controller"
 import * as Views from "./views"
 import {LocalStorageState} from "./localstorage"

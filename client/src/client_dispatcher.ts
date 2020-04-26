@@ -1,11 +1,11 @@
 // Using a symlink to the shared directory in order to work around a parceljs bug:
 // https://github.com/parcel-bundler/parcel/issues/2978
 import {BlackBox as Buffers} from "./shared/src/protos/messages_generated"
-import {MessageBuilder, MessageDispatcher, GameMetadata, GameState} from "./shared/src/messages"
+import {MessageDispatcher, GameMetadata, GameState} from "./shared/src/messages"
 import {LocalStorageState} from "./localstorage"
 import {stateController, View} from "./state_controller"
 import {parseQueryParameters} from "./utils"
-import {UserLoginInfo, playerState} from "./global"
+import {playerState} from "./global"
 import * as Views from "./views"
 
 export const dispatcher = new MessageDispatcher();
