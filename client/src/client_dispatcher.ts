@@ -2,25 +2,13 @@
 // https://github.com/parcel-bundler/parcel/issues/2978
 import {BlackBox as Buffers} from "./shared/src/protos/messages_generated"
 import {MessageBuilder, MessageDispatcher, GameMetadata, GameState} from "./shared/src/messages"
-import {UserLoginInfo, LocalStorageState} from "./localstorage"
-import {stateController, View} from "./dom"
+import {LocalStorageState} from "./localstorage"
+import {stateController, View} from "./state_controller"
+import {parseQueryParameters} from "./utils"
+import {UserLoginInfo, playerState} from "./global"
+import * as Views from "./views"
 
-function parseQueryParameters(): {[key: string]: string} {
-    const urlParameters = {}
-    location.search
-        .substr(1)
-        .split("&")
-        .forEach((item) => {
-            const [key, value] = item.split("=")
-            urlParameters[key] = value
-        })
-    return urlParameters
-}
-
-let loginInfo: UserLoginInfo | null = null
-let socket: WebSocket | null = null
-
-const dispatcher = new MessageDispatcher();
+export const dispatcher = new MessageDispatcher();
 dispatcher.register(
     Buffers.AnyPayload.LoginAckPayload,
     Buffers.LoginAckPayload,
@@ -28,7 +16,7 @@ dispatcher.register(
         if (!payload.success()) {
             const failReason = payload.errorMessage()
             console.error(`Login failed; reason: ${failReason}`)
-            socket.close(undefined, "Login rejected")
+            playerState.socket.close(undefined, "Login rejected")
 
             stateController.setView(View.Register, true)
             stateController.setState({loggingIn: false})
@@ -38,7 +26,7 @@ dispatcher.register(
         const username = payload.username()
         LocalStorageState.setUserLogin(key, username)
 
-        loginInfo = {key, username}
+        playerState.loginInfo = {key, username}
         console.log(`Login successful: key="${key}"; username="${username}"`)
 
         // TODO(bdero): If invite code set, attempt to join game session
@@ -47,11 +35,11 @@ dispatcher.register(
             const inviteCode = queryParams["invite"]
             console.log(`Invite code set (invite="${inviteCode}); attempting to join session`)
 
-            joinGame(false, inviteCode)
+            Views.joinGame(false, inviteCode)
             return
         }
 
-        listGames()
+        Views.listGames()
     }
 )
 dispatcher.register(
@@ -81,7 +69,7 @@ dispatcher.register(
         if (!payload.success()) {
             const failReason = payload.errorMessage()
             console.error(`Failed to join game; reason: ${failReason}`)
-            listGames()
+            Views.listGames()
             return
         }
 
@@ -114,50 +102,3 @@ dispatcher.register(
         stateController.setState({gameState: newState})
     }
 )
-
-function login(loginInfo: UserLoginInfo, register: boolean) {
-    if (socket !== null) {
-        socket.close(undefined, "Reconnecting")
-    }
-
-    socket = new WebSocket("ws://localhost:8888")
-    socket.binaryType = "arraybuffer"
-    socket.onopen = (event) => {
-        socket.send(
-            MessageBuilder
-                .create()
-                .setLoginPayload(register, loginInfo.username, loginInfo.key)
-                .build())
-    }
-    socket.onclose = (event) => {
-        loginInfo = null
-        console.log(`Socket connection closed with code "${event.code}"; reason: ${event.reason}`)
-    }
-    socket.onmessage = (event) => {
-        dispatcher.dispatch(null, new Uint8Array(event.data))
-    }
-}
-
-function joinGame(createGame = false, inviteCode?: string) {
-    if (createGame) {
-        console.log(`Joining new game`)
-    } else {
-        console.log(`Joining game: ${inviteCode}`)
-    }
-
-    stateController.setState({gameState: null})
-
-    socket.send(
-        MessageBuilder.create()
-            .setJoinGamePayload(createGame, inviteCode)
-            .build())
-}
-
-function listGames() {
-    console.log("Requesting current games list")
-
-    stateController.setView(View.GameList, true)
-    socket.send(MessageBuilder.create().setListGamesPayload().build())
-}
-
-export {login, joinGame, loginInfo}

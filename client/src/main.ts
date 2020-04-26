@@ -1,5 +1,6 @@
-import {initDom, stateController, View} from "./dom"
-import {login} from "./client_dispatcher"
+import {initDom} from "./dom"
+import {stateController, View} from "./state_controller"
+import * as Views from "./views"
 import {LocalStorageState} from "./localstorage"
 
 
@@ -15,5 +16,5 @@ window.addEventListener('DOMContentLoaded', (event) => {
         return
     }
     console.log(`Stored user info found: key="${loginInfo.key}"; username="${loginInfo.username}; logging in"`)
-    login(loginInfo, false)
+    Views.login(loginInfo, false)
 })

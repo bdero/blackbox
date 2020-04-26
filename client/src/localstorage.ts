@@ -1,9 +1,6 @@
-interface UserLoginInfo {
-    key: string | null,
-    username: string | null
-}
+import {UserLoginInfo} from "./global"
 
-class LocalStorageState {
+export class LocalStorageState {
     public static readonly KEY_FIELD = "key"
     public static readonly USERNAME_FIELD = "username"
 
@@ -18,5 +15,3 @@ class LocalStorageState {
         localStorage.setItem(LocalStorageState.USERNAME_FIELD, username)
     }
 }
-
-export {UserLoginInfo, LocalStorageState}

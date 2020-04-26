@@ -1,64 +1,9 @@
 import * as React from "react"
 import * as ReactDOM from "react-dom"
 
-import {login, joinGame, loginInfo} from "./client_dispatcher"
+import * as Views from "./views"
 import {Vector2, GameMetadata, GameState, GameBoard} from "./shared/src/messages"
-
-enum View {
-    Init,
-    Register,
-    GameList,
-    GamePlay
-}
-type RenderState = {
-    currentView: View,
-    username: string,
-    loggingIn: boolean, // For registration view
-    gamesList: GameMetadata[],
-    gameState: GameState | null,
-}
-type StateSetter = (stateTransform: {[key: string]: any} | ((previousState: RenderState) => RenderState)) => void
-type StateGetter = () => RenderState
-
-class StateController {
-    stateSetter: StateSetter
-    stateGetter: StateGetter
-
-    registerState(stateSetter: StateSetter, stateGetter: StateGetter) {
-        this.stateSetter = stateSetter
-        this.stateGetter = stateGetter
-    }
-
-    setState(data: {[key: string]: any}) {
-        this.stateSetter(data)
-    }
-
-    getState(): RenderState {
-        return this.stateGetter()
-    }
-
-    getCurrentInviteCode(): string | null {
-        const state = this.getState()
-        if (state.gameState === null) return null
-        return state.gameState.metadata.inviteCode
-    }
-
-    setView(view: View, updateParams: boolean = true, params: Object = {}) {
-        this.stateSetter({currentView: view})
-
-        if (updateParams === false) return
-
-        const currentLocation = window.location.href
-        const [urlBase] = currentLocation.split("?")
-
-        const queryParams = new URLSearchParams()
-        Object.keys(params).forEach(k => queryParams.set(k, params[k]))
-        const queryString = queryParams.toString()
-        const urlParams = queryString ? `?${queryString}` : ""
-        window.history.replaceState('', '', `${urlBase}${urlParams}`)
-    }
-}
-const stateController = new StateController()
+import {RenderState, View, stateController} from "./state_controller"
 
 class InitView extends React.Component {
     render() {
@@ -76,7 +21,7 @@ class RegisterView extends React.Component<{username: string, loggingIn: boolean
     }
     submit() {
         stateController.setState({loggingIn: true})
-        login({
+        Views.login({
             username: this.props.username,
             key: null
         }, true)
@@ -108,7 +53,7 @@ class GameListItem extends React.Component<{game: GameMetadata}> {
     }
 
     joinGameClicked() {
-        joinGame(false, this.props.game.inviteCode)
+        Views.joinGame(false, this.props.game.inviteCode)
     }
 
     render() {
@@ -124,7 +69,7 @@ class GameListItem extends React.Component<{game: GameMetadata}> {
 
 class GameListView extends React.Component<{gamesList: GameMetadata[]}> {
     newGameClicked() {
-        joinGame(true)
+        Views.joinGame(true)
     }
 
     getListContents(): JSX.Element {
@@ -217,7 +162,13 @@ class GamePlayView extends React.Component<{gameState: GameState}> {
     }
 }
 
-class GameBoardComponent extends React.Component<{gameBoard: GameBoard, isCurrentPlayer: boolean, isJoined: boolean},{rayCoords: null | Vector2}> {
+interface GameBoardProps {
+    gameBoard: GameBoard,
+    isCurrentPlayer: boolean,
+    isJoined: boolean
+}
+
+class GameBoardComponent extends React.Component<GameBoardProps ,{rayCoords: null | Vector2}> {
     static readonly CELL_SIZE: number = 100;
     static readonly CELL_BORDER_SIZE: number = 3;
     static readonly BOARD_SIZE: number = 500;
@@ -367,4 +318,4 @@ function initDom() {
     )
 }
 
-export {initDom, stateController, View}
+export {initDom}
