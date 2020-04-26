@@ -1,49 +1,85 @@
+// Note: #root is the React mount div.
 body, #root, .main-container
     padding: 0
     margin: 0
     min-height: 100vh
     font-family: Arial, Helvetica, sans-serif
 
+// Top-level container in the "Root" component.
+// Vertically and horizontally center all game contents.
 .main-container
     display: flex
     width: 100%
     height: 100%
-    justify-content: center
+    justify-content: safe center
     align-items: center
 
+// Container for the game view.
 .game-container
     display: flex
     flex-direction: row
     flex-wrap: wrap
+    // When items wrap, the flex-basis value doesn't seem to dynamically update with the content, and
+    // so flex-shrink alone doesn't work for keeping the contents always centered.
+    justify-content: center
 
+// Container that holds a full player display in the game view. There are always exactly two of these
+// in the game-container.
+.game-player-container
+    display: flex
+    flex-direction: column
+    margin: 1em 1em 0em 1em
+
+// Contains text for a player's username alongside status emojis.
+// First item in a game-player-container.
 .game-player-header
     display: flex
     justify-content: center
+    align-items: center
     font-size: 20pt
+    min-height: 1em
 
+// Contains an SVG game board.
+// Second item in a game-player-container.
 .game-board-container
     position: relative
+    max-width: 30em
+    margin-top: 0.5em
 
-.invite-link-container
+// Modal that displays over an opponent's game board when no player has joined.
+// Contains text along with a readonly input box containing a copyable invitation link.
+// In practice, this can only ever show up on the second game board, since the second
+// player that enters a game will always already have an opponent.
+.invite-link-modal
     display: flex
-    width: 500px
-    height: 500px
     justify-content: center
     align-items: center
+    flex-direction: column
+    width: 100%
+    height: 100%
     position: absolute
     top: 0
     background-color: rgba(255, 255, 255, 0.9)
     font-size: 20pt
     input
         display: block
-        width: 300px
-        border: 5px solid rgb(150,200,150)
+        width: 70%
+        border: 0.3em solid rgb(150,200,150)
         border-radius: 10px
         font-size: 18px
-        padding: 10px
+        padding: 0.5em
+        margin-top: 0.5em
 
+// SVG game board
+.game-board
+    width: 100%
+
+// Gameplay board cell in the center which may contain an atom.
+// When selecting atoms at the beginning of the game, a player may click this cell
+// to toggle an atom location, or drag an existing atom to another location.
 .atom-cell
     fill: rgb(0, 0, 0)
 
+// Gameplay board cell on the side which is used to select a ray direction.
 .selection-cell
     fill: rgb(50, 50, 50)

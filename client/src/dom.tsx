@@ -178,10 +178,9 @@ class GamePlayView extends React.Component<{gameState: GameState}> {
         let inviteLink: JSX.Element | null = null
         if (!hasPlayerJoined) {
             inviteLink = (
-                <div className="invite-link-container">
-                    <div>
-                        Invite link <input type="text" value={window.location.toString()} readOnly/>
-                    </div>
+                <div className="invite-link-modal">
+                    <label htmlFor="inviteCode">Invite link</label>
+                    <input id="inviteCode" type="text" value={window.location.toString()} readOnly/>
                 </div>
             )
         }
@@ -298,7 +297,7 @@ class GameBoardComponent extends React.Component<{gameBoard: GameBoard, isCurren
 
     render() {
         return (
-            <svg width={GameBoardComponent.BOARD_SIZE} height={GameBoardComponent.BOARD_SIZE}>
+            <svg className="game-board" viewBox={`0 0 ${GameBoardComponent.BOARD_SIZE} ${GameBoardComponent.BOARD_SIZE}`} preserveAspectRatio="xMidYMid meet">
                 <g transform="scale(0.5, 0.5)">
                     {this.getCells()}
                     {this.getRay()}
