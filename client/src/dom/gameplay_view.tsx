@@ -67,6 +67,28 @@ export class GamePlayView extends React.Component<{gameState: GameState}> {
     }
 }
 
+// This is a neat hack for "instancing" component state by enclosing restoration instructions
+// between component unmounting and remounting.
+// https://stackoverflow.com/a/31372045/5221054
+type RestoreProcedure<S = any> = (component: React.Component<any, S>) => void
+interface InstanceState<S = any> {
+    save: (restoreProcedure: RestoreProcedure<S>) => void,
+    restore: (component: React.Component<any, S>) => boolean,
+}
+function createInstance(): InstanceState {
+    let restoreProcedure: RestoreProcedure | null = null
+    return {
+        save: (restore: RestoreProcedure) => {
+            restoreProcedure = restore
+        },
+        restore: (context): boolean => {
+            if (restoreProcedure === null) return false
+            restoreProcedure(context)
+            return true
+        }
+    }
+}
+
 interface GameBoardProps {
     gameBoard: GameBoard,
     gameBoardIndex: number,
@@ -75,7 +97,15 @@ interface GameBoardProps {
     gameStatus: BlackBox.GameSessionStatus
 }
 
-class GameBoardComponent extends React.Component<GameBoardProps, {rayCoords: null | Vector2, localAtoms: Vector2[]}> {
+interface GameBoardState {
+    rayCoords: null | Vector2,
+    localAtoms: {position: Vector2, instance: InstanceState}[],
+    dragAtomIndex: number | null,
+    mouseX: number,
+    mouseY: number,
+}
+
+class GameBoardComponent extends React.Component<GameBoardProps, GameBoardState> {
     static readonly CELL_SIZE: number = 100;
     static readonly CELL_BORDER_SIZE: number = 3;
     static readonly BOARD_SIZE: number = 500;
@@ -85,7 +115,10 @@ class GameBoardComponent extends React.Component<GameBoardProps, {rayCoords: nul
 
         this.state = {
             rayCoords: null,
-            localAtoms: []
+            localAtoms: [],
+            dragAtomIndex: null,
+            mouseX: 0,
+            mouseY: 0,
         }
 
         this.setRayCoords = this.setRayCoords.bind(this)
@@ -95,6 +128,10 @@ class GameBoardComponent extends React.Component<GameBoardProps, {rayCoords: nul
         this.isAtomSelectionAllowed = this.isAtomSelectionAllowed.bind(this)
         this.addAtom = this.addAtom.bind(this)
         this.removeAtom = this.removeAtom.bind(this)
+        this.updateAtom = this.updateAtom.bind(this)
+        this.onCellMouseDown = this.onCellMouseDown.bind(this)
+        this.onMouseDeactivate = this.onMouseDeactivate.bind(this)
+        this.onMouseMove = this.onMouseMove.bind(this)
     }
 
     setRayCoords(x?: number, y?: number) {
@@ -139,15 +176,85 @@ class GameBoardComponent extends React.Component<GameBoardProps, {rayCoords: nul
     addAtom(x: number, y: number) {
         if (this.state.localAtoms.length >= 4) return
         this.setState(prevState => {
-            const newAtoms = prevState.localAtoms.filter(a => !(a.x === x && a.y === y))
-            newAtoms.push(new Vector2(x, y))
+            const newAtoms = prevState.localAtoms.filter(a => !(a.position.x === x && a.position.y === y))
+            newAtoms.push({position: new Vector2(x, y), instance: createInstance()})
             return {localAtoms: newAtoms}
         })
     }
 
     removeAtom(x: number, y: number) {
         this.setState(prevState => {
-            const newAtoms = prevState.localAtoms.filter(a => !(a.x === x && a.y === y))
+            const newAtoms = prevState.localAtoms.filter(a => !(a.position.x === x && a.position.y === y))
+            return {localAtoms: newAtoms}
+        })
+    }
+
+    updateAtom(index: number, x: number, y: number) {
+        if (x < 0 || x > 7 || y < 0 || y > 7) return
+
+        this.setState(prevState => {
+            const newAtoms = [...prevState.localAtoms]
+            newAtoms[index].position.x = x
+            newAtoms[index].position.y = y
+            return {localAtoms: newAtoms}
+        })
+    }
+
+    onCellMouseDown(cellX, cellY) {
+        if (!this.isAtomSelectionAllowed()) return
+        if (this.state.dragAtomIndex !== null) return
+
+        const targetCell = this.state.localAtoms.findIndex(a => a.position.x === cellX && a.position.y === cellY)
+        // If there's no existing cell in this location, add one.
+        if (targetCell === -1) {
+            if (this.state.localAtoms.length >= 4) return
+
+            this.addAtom(cellX, cellY)
+            return
+        }
+
+        // If there is an existing cell in this location, begin dragging it.
+        this.setState({dragAtomIndex: targetCell})
+    }
+
+    /** Called whenever the mouse is released or goes out of bounds. */
+    onMouseDeactivate(event: React.MouseEvent<SVGSVGElement, MouseEvent>) {
+        if (!this.isAtomSelectionAllowed()) return
+        if (this.state.dragAtomIndex === null) return
+
+        const rect = event.currentTarget.getBoundingClientRect()
+        const releaseX: number = Math.max(0, Math.min(7, Math.floor((event.clientX - rect.left)/rect.width*10) - 1))
+        const releaseY: number = Math.max(0, Math.min(7, Math.floor((event.clientY - rect.top)/rect.height*10) - 1))
+        const draggedCell = this.state.localAtoms[this.state.dragAtomIndex]
+
+        // If the atom was released on its own cell, remove it.
+        if (draggedCell.position.x === releaseX && draggedCell.position.y === releaseY) {
+            this.removeAtom(releaseX, releaseY)
+            this.setState({dragAtomIndex: null})
+            return
+        }
+
+        // If the atom was released on a different cell that already has an atom on it, keep the cell where it is.
+        if (this.state.localAtoms.findIndex(a => a.position.x === releaseX && a.position.y === releaseY) !== -1) {
+            this.setState({dragAtomIndex: null})
+            return
+        }
+
+        // If the atom was released on a different cell, move the cell.
+        this.updateAtom(this.state.dragAtomIndex, releaseX, releaseY)
+        this.setState({dragAtomIndex: null})
+    }
+
+    onMouseMove(event: React.MouseEvent<SVGSVGElement, MouseEvent>) {
+        if (!this.isAtomSelectionAllowed()) return
+
+        event.persist()
+        const rect = event.currentTarget.getBoundingClientRect()
+        this.setState(prevState => {
+            return {
+                mouseX: (event.clientX - rect.left)/rect.width*10*GameBoardComponent.CELL_SIZE,
+                mouseY: (event.clientY - rect.top)/rect.height*10*GameBoardComponent.CELL_SIZE,
+            }
         })
     }
 
@@ -172,7 +279,7 @@ class GameBoardComponent extends React.Component<GameBoardProps, {rayCoords: nul
                 }
                 if (cellType === 0 && isAtomSelectionAllowed) {
                     extraProps = {
-                        onMouseUp: () => this.addAtom(x - 1, y - 1)
+                        onMouseDown: () => this.onCellMouseDown(x - 1, y - 1)
                     }
                 }
                 cells.push(
@@ -216,14 +323,19 @@ class GameBoardComponent extends React.Component<GameBoardProps, {rayCoords: nul
     }
 
     getAtoms(): JSX.Element {
-        const atoms = this.state.localAtoms.map(a => {
+        const atoms = this.state.localAtoms.map((a, i) => {
+            let posX = GameBoardComponent.CELL_SIZE*1.5 + a.position.x*GameBoardComponent.CELL_SIZE
+            let posY = GameBoardComponent.CELL_SIZE*1.5 + a.position.y*GameBoardComponent.CELL_SIZE
+            if (i === this.state.dragAtomIndex) {
+                posX = this.state.mouseX
+                posY = this.state.mouseY
+            }
             return (
-                <circle
-                    key={`atom_x${a.x}y${a.y}`}
-                    className="atom-circle"
-                    cx={GameBoardComponent.CELL_SIZE*1.5 + a.x*GameBoardComponent.CELL_SIZE}
-                    cy={GameBoardComponent.CELL_SIZE*1.5 + a.y*GameBoardComponent.CELL_SIZE}
-                    r="30"
+                <Atom
+                    key={`atom_x${a.position.x}y${a.position.y}`}
+                    instance={a.instance}
+                    x={posX}
+                    y={posY}
                 />
             )
         })
@@ -233,6 +345,9 @@ class GameBoardComponent extends React.Component<GameBoardProps, {rayCoords: nul
     render() {
         return (
             <svg
+                onMouseUp={this.onMouseDeactivate}
+                onMouseLeave={this.onMouseDeactivate}
+                onMouseMove={this.onMouseMove}
                 className="game-board"
                 viewBox={`0 0 ${GameBoardComponent.BOARD_SIZE} ${GameBoardComponent.BOARD_SIZE}`}
                 preserveAspectRatio="xMidYMid meet">
@@ -242,6 +357,68 @@ class GameBoardComponent extends React.Component<GameBoardProps, {rayCoords: nul
                     {this.getAtoms()}
                 </g>
             </svg>
+        )
+    }
+}
+
+class Atom extends React.Component<{instance: InstanceState, x: number, y: number}, {visualX: number, visualY: number}> {
+    unmounting = false
+    previousTime: number | null = null
+
+    constructor(props) {
+        super(props)
+
+        this.state = {
+            visualX: props.x,
+            visualY: props.y,
+        }
+
+        this.animate = this.animate.bind(this)
+    }
+
+    animate(timestamp) {
+        if (this.unmounting) return
+
+        if (this.previousTime === null) this.previousTime = timestamp
+        const dt = (timestamp - this.previousTime)/1000
+
+        this.setState((prevState) => {
+            return {
+                visualX: prevState.visualX + (this.props.x - prevState.visualX)*(1 - 1/Math.pow(2, dt)),
+                visualY: prevState.visualY + (this.props.y - prevState.visualY)*(1 - 1/Math.pow(2, dt)),
+            }
+        })
+
+        requestAnimationFrame(this.animate)
+    }
+
+    componentDidMount() {
+        this.props.instance.restore(this)
+        requestAnimationFrame(this.animate)
+    }
+
+    componentWillUnmount() {
+        this.unmounting = true
+        let state = this.state
+        this.props.instance.save((component) => {
+            component.setState(() => {
+                return {
+                    visualX: state.visualX,
+                    visualY: state.visualY,
+                }
+            })
+        })
+    }
+
+    render() {
+        return (
+            <circle
+                pointerEvents="none"
+                className="atom-circle"
+                cx={this.state.visualX}
+                cy={this.state.visualY}
+                r="30"
+            />
         )
     }
 }
