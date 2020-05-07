@@ -116,8 +116,9 @@ class GameMetadata {
 
     static fromNormalizedObject(o: ReturnType<GameMetadata['toNormalizedObject']>): GameMetadata {
         const result = new GameMetadata()
-        result.inviteCode = o.inviteCode,
+        result.inviteCode = o.inviteCode
         result.roster = o.roster.map(k => {return {key: k}})
+        result.status = o.status
         return result
     }
 }

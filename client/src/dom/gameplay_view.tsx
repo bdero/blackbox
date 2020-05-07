@@ -43,7 +43,7 @@ export class GamePlayView extends React.Component<{gameState: GameState}> {
                 </div>
                 <div className="game-board-container">
                     <GameBoardComponent
-                        gameBoard={this.props.gameState.boardB}
+                        gameBoard={playerIndex === 0 ? this.props.gameState.boardA : this.props.gameState.boardB}
                         gameBoardIndex={playerIndex}
                         seatNumber={this.props.gameState.metadata.seatNumber}
                         isJoined={hasPlayerJoined}
@@ -138,6 +138,12 @@ class GameBoardComponent extends React.Component<GameBoardProps, GameBoardState>
         this.submitAtoms = this.submitAtoms.bind(this)
     }
 
+    componentDidMount() {
+        if (this.props.gameBoard.atomLocations) {
+            this.props.gameBoard.atomLocations.forEach(a => this.addAtom(a.x, a.y))
+        }
+    }
+
     setRayCoords(x?: number, y?: number) {
         if (x === undefined || y === undefined) {
             this.setState({rayCoords: null})
@@ -166,10 +172,8 @@ class GameBoardComponent extends React.Component<GameBoardProps, GameBoardState>
     }
 
     isAtomSelectionAllowed(): boolean {
-        this.localUserIsPlayer() && this.isLocalPlayerBoard() && this.props.gameStatus === BlackBox.GameSessionStatus.SelectingAtoms
-        this.localUserIsPlayer() && !this.isLocalPlayerBoard() && (this.props.gameStatus === BlackBox.GameSessionStatus.PlayerATurn || this.props.gameStatus === BlackBox.GameSessionStatus.PlayerBTurn)
         return this.localUserIsPlayer() && (
-            (this.isLocalPlayerBoard() && this.props.gameStatus === BlackBox.GameSessionStatus.SelectingAtoms)
+            (this.isLocalPlayerBoard() && this.props.gameStatus === BlackBox.GameSessionStatus.SelectingAtoms && !this.props.gameBoard.atomsSubmitted)
             || (
                 !this.isLocalPlayerBoard()
                 && (this.props.gameStatus === BlackBox.GameSessionStatus.PlayerATurn || this.props.gameStatus === BlackBox.GameSessionStatus.PlayerBTurn)
@@ -340,6 +344,7 @@ class GameBoardComponent extends React.Component<GameBoardProps, GameBoardState>
             }
             return (
                 <Atom
+                    isStatic={!this.isAtomSelectionAllowed()}
                     key={`atom_x${a.position.x}y${a.position.y}`}
                     instance={a.instance}
                     x={posX}
@@ -387,7 +392,7 @@ class GameBoardComponent extends React.Component<GameBoardProps, GameBoardState>
     }
 }
 
-class Atom extends React.Component<{instance: InstanceState, x: number, y: number}, {visualX: number, visualY: number}> {
+class Atom extends React.Component<{isStatic: boolean, instance: InstanceState, x: number, y: number}, {visualX: number, visualY: number}> {
     unmounting = false
     previousTime: number | null = null
 
@@ -440,7 +445,7 @@ class Atom extends React.Component<{instance: InstanceState, x: number, y: numbe
         return (
             <circle
                 pointerEvents="none"
-                className="atom-circle"
+                className={`atom-circle-movable${this.props.isStatic ? " atom-circle-static" : ""}`}
                 cx={this.state.visualX}
                 cy={this.state.visualY}
                 r="30"

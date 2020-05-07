@@ -1,7 +1,7 @@
 import WebSocket = require("ws")
 
 import {BlackBox as Buffers} from "./shared/src/protos/messages_generated"
-import {MessageBuilder, MessageDispatcher, GameMetadata, GameState} from "./shared/src/messages"
+import {MessageBuilder, MessageDispatcher, GameMetadata, GameState, Vector2} from "./shared/src/messages"
 import {randomName} from "./shared/src/word_lists"
 import {Player, GameSession, GameSessionSeat} from "./database"
 
@@ -33,17 +33,20 @@ class Game {
     /**
      * Build or fetch the in-memory game context. Returns `null` if the invite code doesn't match a game.
      *
-     * This should only ever be used in a situation where a connection is trying to subscribe to an existing game.
+     * This should be used for fetching a game's live context in most situations.
      * @param inviteCode
      * @param newSubscriber
      */
-    static async fromInviteCode(inviteCode: string, newSubscriber: Connection): Promise<Game | null> {
+    static async fromInviteCode(inviteCode: string, newSubscriber: Connection | null): Promise<Game | null> {
         if (Game.inviteCodeToGameIndex.has(inviteCode)) {
             const cachedGame = Game.inviteCodeToGameIndex.get(inviteCode)
-            await cachedGame.subscribeConnection(newSubscriber)
+            if (newSubscriber !== null) {
+                await cachedGame.subscribeConnection(newSubscriber)
+            }
             return cachedGame
         }
 
+        // Load the game from the database if it doesn't exist yet
         const gameSession: GameSession | null = await GameSession.findOne({
             where: {
                 inviteCode: inviteCode
@@ -57,10 +60,55 @@ class Game {
         const result = new Game()
         result.model = gameSession
         result.gameState = GameState.fromNormalizedObject(gameStateObject)
-        await result.subscribeConnection(newSubscriber) // Also populates the roster
+        if (newSubscriber !== null) {
+            await result.subscribeConnection(newSubscriber) // Also populates the roster
+        } else {
+            await result.refreshRoster()
+            await result.publish()
+        }
 
         Game.inviteCodeToGameIndex.set(inviteCode, result)
         return result
+    }
+
+    async setAtoms(connection: Connection, atoms: Vector2[]) {
+        if (!connection.isLoggedIn()) return
+
+        if (!this.roster.has(connection.playerKey)) {
+            connection.logError(
+                `Player "${connection.playerKey}" attempted to set atoms for game "${this.gameState.metadata.inviteCode}", but they're not in the roster.`)
+            return
+        }
+
+        const seat = this.roster.get(connection.playerKey).seatNumber
+        if (seat !== 0 && seat !== 1) {
+            connection.logError(
+                `Player "${connection.playerKey}" attempted to set atoms for game "${this.gameState.metadata.inviteCode}", but their seat number is ${seat}.`)
+            return
+        }
+
+        const board = seat === 0 ? this.gameState.boardA : this.gameState.boardB
+        if (board.atomsSubmitted) {
+            connection.logError(
+                `Player "${connection.playerKey}" attempted to set atoms for game "${this.gameState.metadata.inviteCode}" (seat: ${seat}), but their atoms are already submitted.`)
+            return
+        }
+
+        if (this.gameState.metadata.status !== Buffers.GameSessionStatus.SelectingAtoms) {
+            connection.logError(
+                `Invalid game status "${this.gameState.metadata.status}" while setting atoms for game "${this.gameState.metadata.inviteCode}" -- not all players in the game have submitted atoms, but the game status is not "SelectingAtoms".`)
+        }
+
+        board.atomLocations = atoms
+        board.atomsSubmitted = true
+
+        if (this.gameState.boardA.atomsSubmitted && this.gameState.boardB.atomsSubmitted) {
+            this.gameState.metadata.status = Buffers.GameSessionStatus.PlayerATurn
+        }
+
+        this.dirty = true
+        this.save()
+        this.publish()
     }
 
     async refreshRoster() {
@@ -350,8 +398,33 @@ class Connection {
         )
     }
 
-    setAtoms(setAtomsPayload: Buffers.SetAtomsPayload) {
-        console.log(`invite code: ${setAtomsPayload.inviteCode()}`)
+    async setAtoms(setAtomsPayload: Buffers.SetAtomsPayload) {
+        if (!this.isLoggedIn()) {
+            this.logError(`Received "SetAtomsPayload", for game "${setAtomsPayload.inviteCode()}" but the connection is not logged in`)
+            return
+        }
+
+        const inviteCode = setAtomsPayload.inviteCode()
+        if (!Game.inviteCodeToGameIndex.has(inviteCode)) {
+            this.logError(`Received "SetAtomsPayload" for nonexistent invite code: ${inviteCode}`)
+            return
+        }
+
+        const atomsLength = setAtomsPayload.atomLocationsLength()
+        if (atomsLength !== 4) {
+            this.logError(
+                `Received "SetAtomsPayload" with ${setAtomsPayload.atomLocationsLength()} atom(s), but exactly 4 is required`)
+            return
+        }
+
+        const atoms: Vector2[] = []
+        for (let i = 0; i < atomsLength; i++) {
+            const a: Buffers.Vec2 = setAtomsPayload.atomLocations(i)
+            atoms.push(new Vector2(a.x(), a.y()))
+        }
+
+        const game = await Game.fromInviteCode(inviteCode, null)
+        await game.setAtoms(this, atoms)
     }
 
     private async createGame(): Promise<string> {

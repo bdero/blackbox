@@ -99,6 +99,8 @@ dispatcher.register(
             return
         }
 
+        console.log(`Received update message for game \`${newState.metadata.inviteCode}\`.`)
+
         stateController.setState({gameState: newState})
     }
 )

@@ -20,14 +20,17 @@ type StateGetter = () => RenderState
 class StateController {
     stateSetter: StateSetter
     stateGetter: StateGetter
+    component: React.Component
 
-    registerState(stateSetter: StateSetter, stateGetter: StateGetter) {
+    registerState(stateSetter: StateSetter, stateGetter: StateGetter, component: React.Component) {
         this.stateSetter = stateSetter
         this.stateGetter = stateGetter
+        this.component = component
     }
 
     setState(data: {[key: string]: any}) {
         this.stateSetter(data)
+        this.component.forceUpdate()
     }
 
     getState(): RenderState {

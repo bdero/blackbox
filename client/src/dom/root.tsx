@@ -23,7 +23,7 @@ class Root extends React.Component<{}, RenderState> {
     }
 
     componentDidMount() {
-        stateController.registerState(this.setState.bind(this), () => this.state)
+        stateController.registerState(this.setState.bind(this), () => this.state, this)
     }
 
     getView(): JSX.Element {
