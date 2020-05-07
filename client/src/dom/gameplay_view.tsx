@@ -29,7 +29,7 @@ export class GamePlayView extends React.Component<{gameState: GameState}> {
         if (!hasPlayerJoined) {
             inviteLink = (
                 <div className="invite-link-modal">
-                    <label htmlFor="inviteCode">Invite link</label>
+                    <label htmlFor="inviteCode">Invite a friend to play</label>
                     <input id="inviteCode" type="text" value={window.location.toString()} readOnly/>
                 </div>
             )
@@ -344,19 +344,37 @@ class GameBoardComponent extends React.Component<GameBoardProps, GameBoardState>
 
     render() {
         return (
-            <svg
-                onMouseUp={this.onMouseDeactivate}
-                onMouseLeave={this.onMouseDeactivate}
-                onMouseMove={this.onMouseMove}
-                className="game-board"
-                viewBox={`0 0 ${GameBoardComponent.BOARD_SIZE} ${GameBoardComponent.BOARD_SIZE}`}
-                preserveAspectRatio="xMidYMid meet">
-                <g transform="scale(0.5, 0.5)">
-                    {this.getCells()}
-                    {this.getRay()}
-                    {this.getAtoms()}
-                </g>
-            </svg>
+            <div>
+                <svg
+                    onMouseUp={this.onMouseDeactivate}
+                    onMouseLeave={this.onMouseDeactivate}
+                    onMouseMove={this.onMouseMove}
+                    className="game-board"
+                    viewBox={`0 0 ${GameBoardComponent.BOARD_SIZE} ${GameBoardComponent.BOARD_SIZE}`}
+                    preserveAspectRatio="xMidYMid meet">
+                    <g transform="scale(0.5, 0.5)">
+                        {this.getCells()}
+                        {this.getRay()}
+                        {this.getAtoms()}
+                    </g>
+                </svg>
+                <div className="game-board-status-line">
+                    {this.isAtomSelectionAllowed() &&
+                        (
+                            this.state.localAtoms.length === 4 ?
+                                <button
+                                    className="atom-selection-button"
+                                    onClick={() => {console.log("submit atoms!")}}
+                                    disabled={this.state.localAtoms.length !== 4}>
+                                    Submit Atoms
+                                </button> :
+                                <span>
+                                    Place {4 - this.state.localAtoms.length} more atom{this.state.localAtoms.length !== 3 && `s`}
+                                </span>
+                        )
+                    }
+                </div>
+            </div>
         )
     }
 }
