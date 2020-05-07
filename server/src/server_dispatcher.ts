@@ -350,6 +350,10 @@ class Connection {
         )
     }
 
+    setAtoms(setAtomsPayload: Buffers.SetAtomsPayload) {
+        console.log(`invite code: ${setAtomsPayload.inviteCode()}`)
+    }
+
     private async createGame(): Promise<string> {
         let key: string = null
         while (key === null) {
@@ -396,6 +400,11 @@ dispatcher.register(
     Buffers.AnyPayload.JoinGamePayload,
     Buffers.JoinGamePayload,
     (connection: Connection, payload: Buffers.JoinGamePayload) => connection.joinGame(payload)
+)
+dispatcher.register(
+    Buffers.AnyPayload.SetAtomsPayload,
+    Buffers.SetAtomsPayload,
+    (connection: Connection, payload: Buffers.SetAtomsPayload) => connection.setAtoms(payload)
 )
 
 const connectionMap: Map<WebSocket, Connection> = new Map()

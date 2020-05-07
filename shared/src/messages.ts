@@ -355,9 +355,10 @@ class MessageBuilder {
         return this
     }
 
-    setSetAtomsPayload(atoms: Vector2[]) {
+    setSetAtomsPayload(inviteCode: string, atoms: Vector2[]) {
         this.payloadType = Buffers.AnyPayload.SetAtomsPayload
 
+        const inviteCodeOffset = this.createString(inviteCode)
         Buffers.SetAtomsPayload.startAtomLocationsVector(this.builder, atoms.length)
         atoms.forEach(a => {
             Buffers.Vec2.createVec2(this.builder, a.x, a.y)
@@ -365,16 +366,20 @@ class MessageBuilder {
         const atomLocationsVectorOffset: number = this.builder.endVector()
 
         Buffers.SetAtomsPayload.startSetAtomsPayload(this.builder)
+        Buffers.SetAtomsPayload.addInviteCode(this.builder, inviteCodeOffset)
         Buffers.SetAtomsPayload.addAtomLocations(this.builder, atomLocationsVectorOffset)
 
         this.payloadOffset = Buffers.SetAtomsPayload.endSetAtomsPayload(this.builder)
         return this
     }
 
-    setSubmitMovePayload(move: Vector2) {
+    setSubmitMovePayload(inviteCode: string, move: Vector2) {
         this.payloadType = Buffers.AnyPayload.SubmitMovePayload
 
+        const inviteCodeOffset = this.createString(inviteCode)
+
         Buffers.SubmitMovePayload.startSubmitMovePayload(this.builder)
+        Buffers.SubmitMovePayload.addInviteCode(this.builder, inviteCodeOffset)
         Buffers.SubmitMovePayload.addMove(
             this.builder, Buffers.Vec2.createVec2(this.builder, move.x, move.y))
 
@@ -382,9 +387,10 @@ class MessageBuilder {
         return this
     }
 
-    setSubmitSolutionPayload(atoms: Vector2[]) {
+    setSubmitSolutionPayload(inviteCode: string, atoms: Vector2[]) {
         this.payloadType = Buffers.AnyPayload.SubmitSolutionPayload
 
+        const inviteCodeOffset = this.createString(inviteCode)
         Buffers.SubmitSolutionPayload.startAtomLocationsVector(this.builder, atoms.length)
         atoms.forEach(a => {
             Buffers.Vec2.createVec2(this.builder, a.x, a.y)
@@ -392,6 +398,7 @@ class MessageBuilder {
         const atomLocationsVectorOffset: number = this.builder.endVector()
 
         Buffers.SubmitSolutionPayload.startSubmitSolutionPayload(this.builder)
+        Buffers.SubmitSolutionPayload.addInviteCode(this.builder, inviteCodeOffset)
         Buffers.SubmitSolutionPayload.addAtomLocations(this.builder, atomLocationsVectorOffset)
 
         this.payloadOffset = Buffers.SubmitSolutionPayload.endSubmitSolutionPayload(this.builder)

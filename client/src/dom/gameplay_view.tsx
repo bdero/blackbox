@@ -1,6 +1,7 @@
 import * as React from "react"
 import {Vector2, GameState, GameBoard} from "../shared/src/messages"
-import { BlackBox } from "../shared/src/protos/messages_generated"
+import {BlackBox} from "../shared/src/protos/messages_generated"
+import {submitAtoms} from "../views"
 
 export class GamePlayView extends React.Component<{gameState: GameState}> {
     constructor(props) {
@@ -46,7 +47,8 @@ export class GamePlayView extends React.Component<{gameState: GameState}> {
                         gameBoardIndex={playerIndex}
                         seatNumber={this.props.gameState.metadata.seatNumber}
                         isJoined={hasPlayerJoined}
-                        gameStatus={this.props.gameState.metadata.status} />
+                        gameStatus={this.props.gameState.metadata.status}
+                        inviteCode={this.props.gameState.metadata.inviteCode} />
                     {inviteLink}
                 </div>
             </div>
@@ -95,6 +97,7 @@ interface GameBoardProps {
     seatNumber: number,
     isJoined: boolean,
     gameStatus: BlackBox.GameSessionStatus
+    inviteCode: string,
 }
 
 interface GameBoardState {
@@ -132,6 +135,7 @@ class GameBoardComponent extends React.Component<GameBoardProps, GameBoardState>
         this.onCellMouseDown = this.onCellMouseDown.bind(this)
         this.onMouseDeactivate = this.onMouseDeactivate.bind(this)
         this.onMouseMove = this.onMouseMove.bind(this)
+        this.submitAtoms = this.submitAtoms.bind(this)
     }
 
     setRayCoords(x?: number, y?: number) {
@@ -258,6 +262,10 @@ class GameBoardComponent extends React.Component<GameBoardProps, GameBoardState>
         })
     }
 
+    submitAtoms() {
+        submitAtoms(this.props.inviteCode, this.state.localAtoms.map(a => a.position))
+    }
+
     getCells(): JSX.Element {
         const isMoveAllowed = this.isMoveAllowed()
         const isAtomSelectionAllowed = this.isAtomSelectionAllowed()
@@ -364,7 +372,7 @@ class GameBoardComponent extends React.Component<GameBoardProps, GameBoardState>
                             this.state.localAtoms.length === 4 ?
                                 <button
                                     className="atom-selection-button"
-                                    onClick={() => {console.log("submit atoms!")}}
+                                    onClick={this.submitAtoms}
                                     disabled={this.state.localAtoms.length !== 4}>
                                     Submit Atoms
                                 </button> :

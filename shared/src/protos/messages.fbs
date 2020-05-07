@@ -93,16 +93,19 @@ table UpdateGamePayload {
 
 // Client->Server - Submit atom locations (done by both players at the beginning)
 table SetAtomsPayload {
+    inviteCode: string;
     atomLocations: [Vec2];
 }
 
 // Client->Server - Submit a move input
 table SubmitMovePayload {
+    inviteCode: string;
     move: Vec2;
 }
 
 // Client->Server - Submit a solution guess
 table SubmitSolutionPayload {
+    inviteCode: string;
     atomLocations: [Vec2];
 }
 

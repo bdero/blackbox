@@ -1,5 +1,5 @@
 import {UserLoginInfo, playerState} from "./global"
-import {MessageBuilder} from "./shared/src/messages"
+import {MessageBuilder, Vector2} from "./shared/src/messages"
 import {stateController, View} from "./state_controller"
 import {dispatcher} from "./client_dispatcher"
 
@@ -46,4 +46,10 @@ export function listGames() {
 
     stateController.setView(View.GameList, true)
     playerState.socket.send(MessageBuilder.create().setListGamesPayload().build())
+}
+
+export function submitAtoms(inviteCode: string, atoms: Vector2[]) {
+    console.log("Submitting atoms")
+
+    playerState.socket.send(MessageBuilder.create().setSetAtomsPayload(inviteCode, atoms).build())
 }
