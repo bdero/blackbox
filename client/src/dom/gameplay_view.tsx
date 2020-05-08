@@ -26,12 +26,20 @@ export class GamePlayView extends React.Component<{gameState: GameState}> {
         if (isCurrentPlayer) playerName += " 🕹️"
         const playerTitle = hasPlayerJoined ? playerName : "No opponent has joined! 😧"
 
-        let inviteLink: JSX.Element | null = null
+        const gameBoard = playerIndex === 0 ? this.props.gameState.boardA : this.props.gameState.boardB
+
+        let playerModal: JSX.Element | null = null
         if (!hasPlayerJoined) {
-            inviteLink = (
+            playerModal = (
                 <div className="invite-link-modal">
                     <label htmlFor="inviteCode">Invite a friend to play</label>
                     <input id="inviteCode" type="text" value={window.location.toString()} readOnly/>
+                </div>
+            )
+        } else if (!isCurrentPlayer && this.props.gameState.metadata.status === BlackBox.GameSessionStatus.SelectingAtoms) {
+            playerModal = (
+                <div className="invite-link-modal">
+                    {gameBoard.atomsSubmitted ? `Ready!${this.props.gameState.metadata.seatNumber <= 1 ? " Place your atoms to begin." : ""}` : "Waiting for atom placements..."}
                 </div>
             )
         }
@@ -43,13 +51,13 @@ export class GamePlayView extends React.Component<{gameState: GameState}> {
                 </div>
                 <div className="game-board-container">
                     <GameBoardComponent
-                        gameBoard={playerIndex === 0 ? this.props.gameState.boardA : this.props.gameState.boardB}
+                        gameBoard={gameBoard}
                         gameBoardIndex={playerIndex}
                         seatNumber={this.props.gameState.metadata.seatNumber}
                         isJoined={hasPlayerJoined}
                         gameStatus={this.props.gameState.metadata.status}
                         inviteCode={this.props.gameState.metadata.inviteCode} />
-                    {inviteLink}
+                    {playerModal}
                 </div>
             </div>
         )

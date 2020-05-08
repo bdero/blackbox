@@ -74,13 +74,6 @@ GameSessionSeat.init({
     seatNumber: {
         type: DataTypes.INTEGER,
         allowNull: false,
-        validate: {
-            isValidSeatNumber(value) {
-                if (!(value === 0 || value === 1)) {
-                    throw new Error("Seat number must only be set to 0 or 1")
-                }
-            }
-        }
     },
 }, {
     sequelize,
