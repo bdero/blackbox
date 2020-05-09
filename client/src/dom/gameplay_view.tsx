@@ -327,23 +327,22 @@ class GameBoardComponent extends React.Component<GameBoardProps, GameBoardState>
         )
     }
 
-    getRay(): JSX.Element {
-        if (this.state.rayCoords === null) return null
-
+    getRay(start: Vector2, end: Vector2 | null = null, pathVisible: boolean = true, classOverride: string | null = null): JSX.Element {
         virtualBoard.setAtoms(...this.state.localAtoms.map(a => Vector2.add(a.position, new Vector2(1, 1))))
-        const pathPoints = virtualBoard.castRay(this.state.rayCoords)
+        const pathPoints = virtualBoard.castRay(start)
         const pathString = pathPoints.map((s, i) => (
             `${i === 0 ? `M` : `L`} ${s.x*GameBoardComponent.CELL_SIZE + GameBoardComponent.CELL_SIZE/2} ${s.y*GameBoardComponent.CELL_SIZE + GameBoardComponent.CELL_SIZE/2}`)
         ).join(" ")
-        console.log(pathString)
 
         const first = pathPoints[0]
-        const last = pathPoints.length > 1 ? pathPoints[pathPoints.length - 1] : null
+        const last = end || (pathPoints.length > 1 ? pathPoints[pathPoints.length - 1] : null)
         return <g>
-            <path
-                className="ray-path"
-                d={pathString}
-            />
+            {pathVisible &&
+                <path
+                    className={`ray-path${classOverride ? ` ${classOverride}` : ""}`}
+                    d={pathString}
+                />
+            }
             <circle
                 className="ray-circle"
                 r="18"
@@ -359,22 +358,6 @@ class GameBoardComponent extends React.Component<GameBoardProps, GameBoardState>
                 />
             }
         </g>
-
-        const xdir = this.state.rayCoords.x === 0 ? 1 : this.state.rayCoords.x === 9 ? -1 : 0
-        const ydir = this.state.rayCoords.y === 0 ? 1 : this.state.rayCoords.y === 9 ? -1 : 0
-
-        const props = {
-            x1: this.state.rayCoords.x*GameBoardComponent.CELL_SIZE + GameBoardComponent.CELL_SIZE/2,
-            y1: this.state.rayCoords.y*GameBoardComponent.CELL_SIZE + GameBoardComponent.CELL_SIZE/2,
-        }
-        return <line
-            {...props}
-            x2={props.x1 + xdir*GameBoardComponent.CELL_SIZE*8}
-            y2={props.y1 + ydir*GameBoardComponent.CELL_SIZE*8}
-            stroke="white"
-            strokeWidth="20"
-            pointerEvents="none"
-        />
     }
 
     getAtoms(): JSX.Element {
@@ -434,7 +417,7 @@ class GameBoardComponent extends React.Component<GameBoardProps, GameBoardState>
                     preserveAspectRatio="xMidYMid meet">
                     <g transform="scale(0.5, 0.5)">
                         {this.getCells()}
-                        {this.getRay()}
+                        {this.state.rayCoords !== null && this.getRay(this.state.rayCoords)}
                         {this.getAtoms()}
                     </g>
                 </svg>
