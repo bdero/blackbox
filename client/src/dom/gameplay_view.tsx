@@ -8,7 +8,6 @@ export class GamePlayView extends React.Component<{gameState: GameState}> {
         super(props)
 
         this.isCurrentPlayer = this.isCurrentPlayer.bind(this)
-        this.getPlayerDisplay = this.getPlayerDisplay.bind(this)
 
     }
 
@@ -135,6 +134,7 @@ class GameBoardComponent extends React.Component<GameBoardProps, GameBoardState>
         this.setRayCoords = this.setRayCoords.bind(this)
         this.isMoveAllowed = this.isMoveAllowed.bind(this)
         this.localUserIsPlayer = this.localUserIsPlayer.bind(this)
+        this.localUserIsSpectator = this.localUserIsSpectator.bind(this)
         this.isLocalPlayerBoard = this.isLocalPlayerBoard.bind(this)
         this.isAtomSelectionAllowed = this.isAtomSelectionAllowed.bind(this)
         this.addAtom = this.addAtom.bind(this)
@@ -172,6 +172,10 @@ class GameBoardComponent extends React.Component<GameBoardProps, GameBoardState>
     // Determines if the local user is a player; false means the user is a spectator
     localUserIsPlayer(): boolean {
         return this.props.seatNumber === 0 || this.props.seatNumber === 1
+    }
+
+    localUserIsSpectator(): boolean {
+        return this.props.seatNumber >= 2
     }
 
     // Determines if the current game board is the local player's game board
@@ -363,6 +367,30 @@ class GameBoardComponent extends React.Component<GameBoardProps, GameBoardState>
         return <g>{atoms}</g>
     }
 
+    getStatusLine(): JSX.Element | null {
+        if (!this.isAtomSelectionAllowed()) return null
+        const playingGame = this.props.gameStatus === BlackBox.GameSessionStatus.PlayerATurn || this.props.gameStatus === BlackBox.GameSessionStatus.PlayerBTurn
+        if (this.state.localAtoms.length === 4) {
+            if (playingGame) {
+                return <button
+                    className="atom-selection-button"
+                    onClick={this.submitAtoms}
+                    disabled={!this.isMoveAllowed()}>
+                    Guess solution
+                </button>
+            }
+            return <button
+                className="atom-selection-button"
+                onClick={this.submitAtoms}
+                disabled={this.state.localAtoms.length !== 4}>
+                Submit Atoms
+            </button>
+        }
+        return <span>
+            Place {4 - this.state.localAtoms.length} more atom{this.state.localAtoms.length !== 3 && `s`}{playingGame && ` to guess solution`}
+        </span>
+    }
+
     render() {
         return (
             <div>
@@ -370,7 +398,7 @@ class GameBoardComponent extends React.Component<GameBoardProps, GameBoardState>
                     onMouseUp={this.onMouseDeactivate}
                     onMouseLeave={this.onMouseDeactivate}
                     onMouseMove={this.onMouseMove}
-                    className="game-board"
+                    className={`game-board ${this.localUserIsPlayer && !this.isMoveAllowed() && "game-board-disabled"}`}
                     viewBox={`0 0 ${GameBoardComponent.BOARD_SIZE} ${GameBoardComponent.BOARD_SIZE}`}
                     preserveAspectRatio="xMidYMid meet">
                     <g transform="scale(0.5, 0.5)">
@@ -380,20 +408,7 @@ class GameBoardComponent extends React.Component<GameBoardProps, GameBoardState>
                     </g>
                 </svg>
                 <div className="game-board-status-line">
-                    {this.isAtomSelectionAllowed() &&
-                        (
-                            this.state.localAtoms.length === 4 ?
-                                <button
-                                    className="atom-selection-button"
-                                    onClick={this.submitAtoms}
-                                    disabled={this.state.localAtoms.length !== 4}>
-                                    Submit Atoms
-                                </button> :
-                                <span>
-                                    Place {4 - this.state.localAtoms.length} more atom{this.state.localAtoms.length !== 3 && `s`}
-                                </span>
-                        )
-                    }
+                    {this.getStatusLine()}
                 </div>
             </div>
         )
