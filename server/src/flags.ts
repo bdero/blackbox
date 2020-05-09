@@ -1,5 +1,3 @@
-
-
 interface CliFlag<T> {
     value: T,
     convert: (s: string) => {result: T | null, error: string}
@@ -34,7 +32,7 @@ while (index < process.argv.length) {
             console.error(`Error: Command line parameter "${param}" must have a corresponding value`)
             process.exit(1)
         }
-        
+
         const valueString = process.argv[index + 1]
         const value = cliFlags[param].convert(valueString);
         if (value.result === null) {

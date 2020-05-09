@@ -1,7 +1,8 @@
 import WebSocket = require("ws")
 
 import {BlackBox as Buffers} from "./shared/src/protos/messages_generated"
-import {MessageBuilder, MessageDispatcher, GameMetadata, GameState, Vector2} from "./shared/src/messages"
+import {MessageBuilder, MessageDispatcher, GameMetadata, GameState} from "./shared/src/messages"
+import {Vector2} from "./shared/src/math"
 import {randomName} from "./shared/src/word_lists"
 import {Player, GameSession, GameSessionSeat} from "./database"
 

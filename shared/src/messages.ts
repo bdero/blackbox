@@ -1,50 +1,9 @@
 import {flatbuffers} from "flatbuffers"
 
 import {BlackBox as Buffers} from "./protos/messages_generated"
+import {Vector2} from "./math"
 
-class Vector2 {
-    public x: number
-    public y: number
-
-    constructor(x: number = 0, y: number = 0) {
-        this.x = x
-        this.y = y
-    }
-
-    static clone(v: Vector2): Vector2 {
-        return new Vector2(v.x, v.y)
-    }
-
-    static add(a: Vector2, b: Vector2): Vector2 {
-        return new Vector2(a.x + b.x, a.y + b.y)
-    }
-
-    add(other: Vector2): Vector2 {
-        this.x += other.x
-        this.y += other.y
-        return this
-    }
-
-    rotateLeft(): Vector2 {
-        const px = this.x
-        this.x = this.y
-        this.y = -px
-        return this
-    }
-
-    rotateRight(): Vector2 {
-        const px = this.x
-        this.x = -this.y
-        this.y = px
-        return this
-    }
-
-    equals(other: Vector2): boolean {
-        return this.x === other.x && this.y === other.y
-    }
-}
-
-class GameBoard {
+export class GameBoard {
     public visible?: boolean // Client only
     public atomsSubmitted: boolean
     public atomLocations?: Vector2[] // Hidden on gameboards not owned by the client
@@ -107,7 +66,7 @@ class GameBoard {
     }
 }
 
-class GameMetadata {
+export class GameMetadata {
     public inviteCode: string
     public seatNumber?: number // Client only
     public roster: {key?: string, username?: string, online?: boolean}[] // Keys are server only
@@ -155,7 +114,7 @@ class GameMetadata {
     }
 }
 
-class GameState {
+export class GameState {
     public metadata: GameMetadata
     public boardA: GameBoard
     public boardB: GameBoard
@@ -210,7 +169,7 @@ class GameState {
 /**
  * Builder for game protocol flatbuffer messages suitable for WebSocket transport.
  */
-class MessageBuilder {
+ export class MessageBuilder {
     private builder: flatbuffers.Builder
     private payloadType: Buffers.AnyPayload
     private payloadOffset: number | null
@@ -464,7 +423,7 @@ type MessageMap = {
 /**
  * Game protocol flatbuffer parser and payload dispatcher.
  */
-class MessageDispatcher {
+export class MessageDispatcher {
     private messageMap: MessageMap
 
     constructor() {
@@ -494,9 +453,4 @@ class MessageDispatcher {
         const payload = message.payload(new payloadClass())
         this.messageMap[payloadType].dispatch(state, payload)
     }
-}
-
-export {
-    MessageBuilder, MessageDispatcher,
-    GameState, GameMetadata, GameBoard, Vector2,
 }
