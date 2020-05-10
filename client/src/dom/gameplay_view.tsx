@@ -138,6 +138,7 @@ class GameBoardComponent extends React.Component<GameBoardProps, GameBoardState>
         this.localUserIsPlayer = this.localUserIsPlayer.bind(this)
         this.localUserIsSpectator = this.localUserIsSpectator.bind(this)
         this.isLocalPlayerBoard = this.isLocalPlayerBoard.bind(this)
+        this.canSeeFullRays = this.canSeeFullRays.bind(this)
         this.isAtomSelectionAllowed = this.isAtomSelectionAllowed.bind(this)
         this.addAtom = this.addAtom.bind(this)
         this.removeAtom = this.removeAtom.bind(this)
@@ -183,6 +184,14 @@ class GameBoardComponent extends React.Component<GameBoardProps, GameBoardState>
     // Determines if the current game board is the local player's game board
     isLocalPlayerBoard(): boolean {
         return this.props.seatNumber == this.props.gameBoardIndex
+    }
+
+    canSeeFullRays(): boolean {
+        if (this.props.gameStatus === BlackBox.GameSessionStatus.PlayerAWin
+            || this.props.gameStatus === BlackBox.GameSessionStatus.PlayerBWin) return true
+        const inGame = this.props.gameStatus === BlackBox.GameSessionStatus.PlayerATurn || this.props.gameStatus === BlackBox.GameSessionStatus.PlayerBTurn
+        if (inGame && this.isLocalPlayerBoard()) return true
+        return false
     }
 
     isAtomSelectionAllowed(): boolean {
@@ -329,7 +338,27 @@ class GameBoardComponent extends React.Component<GameBoardProps, GameBoardState>
         )
     }
 
-    getSimulatedRay(start: Vector2, end: Vector2 | null = null, pathVisible: boolean = true, classOverride: string | null = null): JSX.Element {
+    getRayEndpoint(cell: Vector2, square: boolean): JSX.Element {
+        if (square) {
+            const padding = 20
+            return <rect
+                className="ray-endpoint"
+                rx="8"
+                x={cell.x*GameBoardComponent.CELL_SIZE + padding}
+                y={cell.y*GameBoardComponent.CELL_SIZE + padding}
+                width={GameBoardComponent.CELL_SIZE - padding*2}
+                height={GameBoardComponent.CELL_SIZE - padding*2}
+            />
+        }
+        return <circle
+            className="ray-endpoint"
+            r="18"
+            cx={cell.x*GameBoardComponent.CELL_SIZE + GameBoardComponent.CELL_SIZE/2}
+            cy={cell.y*GameBoardComponent.CELL_SIZE + GameBoardComponent.CELL_SIZE/2}
+        />
+    }
+
+    getSimulatedRay(start: Vector2, end: Vector2 | null = null, pathVisible: boolean = true, square: boolean = false): JSX.Element {
         virtualBoard.setAtoms(...this.state.localAtoms.map(a => Vector2.add(a.position, new Vector2(1, 1))))
         const pathPoints = virtualBoard.castRay(start)
         const pathString = pathPoints.map((s, i) => (
@@ -341,25 +370,21 @@ class GameBoardComponent extends React.Component<GameBoardProps, GameBoardState>
         return <g>
             {pathVisible &&
                 <path
-                    className={`ray-path${classOverride ? ` ${classOverride}` : ""}`}
+                    className="ray-path"
                     d={pathString}
                 />
             }
-            <circle
-                className="ray-circle"
-                r="18"
-                cx={first.x*GameBoardComponent.CELL_SIZE + GameBoardComponent.CELL_SIZE/2}
-                cy={first.y*GameBoardComponent.CELL_SIZE + GameBoardComponent.CELL_SIZE/2}
-            />
-            {last !== null &&
-                <circle
-                    className="ray-circle"
-                    r="18"
-                    cx={last.x*GameBoardComponent.CELL_SIZE + GameBoardComponent.CELL_SIZE/2}
-                    cy={last.y*GameBoardComponent.CELL_SIZE + GameBoardComponent.CELL_SIZE/2}
-                />
-            }
+            {this.getRayEndpoint(first, square)}
+            {last !== null && this.getRayEndpoint(last, square)}
         </g>
+    }
+
+    getMoveRays(): JSX.Element {
+        const canSeePaths = this.canSeeFullRays()
+        const moves = this.props.gameBoard.moves.map(m => {
+            return this.getSimulatedRay(m.in, m.out, canSeePaths, true)
+        })
+        return <g>{moves}</g>
     }
 
     getAtoms(): JSX.Element {
@@ -419,6 +444,7 @@ class GameBoardComponent extends React.Component<GameBoardProps, GameBoardState>
                     preserveAspectRatio="xMidYMid meet">
                     <g transform="scale(0.5, 0.5)">
                         {this.getCells()}
+                        {this.getMoveRays()}
                         {this.state.rayCoords !== null && this.getSimulatedRay(this.state.rayCoords)}
                         {this.getAtoms()}
                     </g>
