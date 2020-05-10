@@ -3,7 +3,7 @@ import {GameState, GameBoard} from "../shared/src/messages"
 import {Vector2} from "../shared/src/math"
 import virtualBoard from "../shared/src/virtualboard"
 import {BlackBox} from "../shared/src/protos/messages_generated"
-import {submitAtoms} from "../views"
+import {submitAtoms, submitMove} from "../views"
 
 export class GamePlayView extends React.Component<{gameState: GameState}> {
     constructor(props) {
@@ -296,17 +296,17 @@ class GameBoardComponent extends React.Component<GameBoardProps, GameBoardState>
                 if (cellType === 2) continue  // Don't render corners
 
                 let extraProps = {}
-                if (cellType === 1 && isMoveAllowed) {
+                if (cellType === 1) {
                     extraProps = {
-                        onMouseEnter: () => {this.setRayCoords(x, y)},
-                        //onMouseOver: () => {this.setRayCoords(x, y)},
-                        onMouseLeave: () => {this.setRayCoords()},
+                        onMouseEnter: () => this.setRayCoords(x, y),
+                        onMouseLeave: () => this.setRayCoords()
                     }
                 }
+                if (cellType === 1 && isMoveAllowed) {
+                    extraProps["onMouseDown"] = () => submitMove(this.props.inviteCode, new Vector2(x, y))
+                }
                 if (cellType === 0 && isAtomSelectionAllowed) {
-                    extraProps = {
-                        onMouseDown: () => this.onCellMouseDown(x - 1, y - 1)
-                    }
+                    extraProps["onMouseDown"] = () => this.onCellMouseDown(x - 1, y - 1)
                 }
                 cells.push(
                     <rect
@@ -329,7 +329,7 @@ class GameBoardComponent extends React.Component<GameBoardProps, GameBoardState>
         )
     }
 
-    getRay(start: Vector2, end: Vector2 | null = null, pathVisible: boolean = true, classOverride: string | null = null): JSX.Element {
+    getSimulatedRay(start: Vector2, end: Vector2 | null = null, pathVisible: boolean = true, classOverride: string | null = null): JSX.Element {
         virtualBoard.setAtoms(...this.state.localAtoms.map(a => Vector2.add(a.position, new Vector2(1, 1))))
         const pathPoints = virtualBoard.castRay(start)
         const pathString = pathPoints.map((s, i) => (
@@ -419,7 +419,7 @@ class GameBoardComponent extends React.Component<GameBoardProps, GameBoardState>
                     preserveAspectRatio="xMidYMid meet">
                     <g transform="scale(0.5, 0.5)">
                         {this.getCells()}
-                        {this.state.rayCoords !== null && this.getRay(this.state.rayCoords)}
+                        {this.state.rayCoords !== null && this.getSimulatedRay(this.state.rayCoords)}
                         {this.getAtoms()}
                     </g>
                 </svg>

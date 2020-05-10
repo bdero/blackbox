@@ -3,6 +3,7 @@ import WebSocket = require("ws")
 import {BlackBox as Buffers} from "./shared/src/protos/messages_generated"
 import {MessageBuilder, MessageDispatcher, GameMetadata, GameState} from "./shared/src/messages"
 import {Vector2} from "./shared/src/math"
+import virtualBoard from "./shared/src/virtualboard"
 import {randomName} from "./shared/src/word_lists"
 import {Player, GameSession, GameSessionSeat} from "./database"
 
@@ -72,22 +73,29 @@ class Game {
         return result
     }
 
-    async setAtoms(connection: Connection, atoms: Vector2[]) {
-        if (!connection.isLoggedIn()) return
+    validateGameAction(action: string, connection: Connection): boolean {
+        if (!connection.isLoggedIn()) return false
 
         if (!this.roster.has(connection.playerKey)) {
             connection.logError(
-                `Player "${connection.playerKey}" attempted to set atoms for game "${this.gameState.metadata.inviteCode}", but they're not in the roster.`)
-            return
+                `Player "${connection.playerKey}" attempted to ${action} for game "${this.gameState.metadata.inviteCode}", but they're not in the roster.`)
+            return false
         }
 
         const seat = this.roster.get(connection.playerKey).seatNumber
         if (seat !== 0 && seat !== 1) {
             connection.logError(
-                `Player "${connection.playerKey}" attempted to set atoms for game "${this.gameState.metadata.inviteCode}", but their seat number is ${seat}.`)
-            return
+                `Player "${connection.playerKey}" attempted to ${action} for game "${this.gameState.metadata.inviteCode}", but their seat number is ${seat}.`)
+            return false
         }
 
+        return true
+    }
+
+    async setAtoms(connection: Connection, atoms: Vector2[]) {
+        if (!this.validateGameAction("set atoms", connection)) return
+
+        const seat = this.roster.get(connection.playerKey).seatNumber
         const board = seat === 0 ? this.gameState.boardA : this.gameState.boardB
         if (board.atomsSubmitted) {
             connection.logError(
@@ -98,6 +106,7 @@ class Game {
         if (this.gameState.metadata.status !== Buffers.GameSessionStatus.SelectingAtoms) {
             connection.logError(
                 `Invalid game status "${this.gameState.metadata.status}" while setting atoms for game "${this.gameState.metadata.inviteCode}" -- not all players in the game have submitted atoms, but the game status is not "SelectingAtoms".`)
+                // This would be wonky, but might be correctable should it happen, so just log the error message and not return here.
         }
 
         board.atomLocations = atoms
@@ -106,6 +115,56 @@ class Game {
         if (this.gameState.boardA.atomsSubmitted && this.gameState.boardB.atomsSubmitted) {
             this.gameState.metadata.status = Buffers.GameSessionStatus.PlayerATurn
         }
+
+        this.dirty = true
+        this.save()
+        this.publish()
+    }
+
+    async submitMove(connection: Connection, move: Vector2) {
+        if (!this.validateGameAction("submit move", connection)) return
+
+        if (!(move.x === 0 || move.x === 9 || move.y === 0 || move.y === 9)) {
+            connection.logError(
+                `Player "${connection.playerKey}" attempted to submit move for game "${this.gameState.metadata.inviteCode}", `
+                + `but the submitted move has invalid coordinates: ${move.toString()}.`)
+            return
+        }
+
+        // Is it the Player's turn?
+        const seat = this.roster.get(connection.playerKey).seatNumber
+        if (!(
+            this.gameState.metadata.status === Buffers.GameSessionStatus.PlayerATurn && seat === 0
+            || this.gameState.metadata.status === Buffers.GameSessionStatus.PlayerBTurn && seat === 1
+        )) {
+            connection.logError(
+                `Player "${connection.playerKey}" attempted to submit move for game "${this.gameState.metadata.inviteCode}", `
+                + `but it's not the player's turn (seat: ${seat}, game status: ${this.gameState.metadata.status}).`)
+            return
+        }
+
+        const opponentBoard = seat === 0 ? this.gameState.boardB : this.gameState.boardA
+        // Is there an existing move in this location?
+        const existingMove = opponentBoard.moves.findIndex(m => m.in.equals(move) || m.out.equals(move))
+        if (existingMove !== -1) {
+            connection.logError(
+                `Player "${connection.playerKey}" attempted to submit move for game "${this.gameState.metadata.inviteCode}", `
+                + `but there's already a another move that covers the given coordinates (seat: ${seat}, submitted move: ${move.toString()}).`)
+            return
+        }
+
+        virtualBoard.setAtoms(...opponentBoard.atomLocations)
+        const rayCast = virtualBoard.castRay(move)
+        const endPoint = rayCast[rayCast.length - 1]
+        const didHit = rayCast.length === 1 || !virtualBoard.isSide(endPoint)
+        opponentBoard.moves.push({
+            in: rayCast[0],
+            out: didHit ? null : endPoint,
+        })
+
+        this.gameState.metadata.status =
+            this.gameState.metadata.status === Buffers.GameSessionStatus.PlayerATurn ?
+                Buffers.GameSessionStatus.PlayerBTurn : Buffers.GameSessionStatus.PlayerATurn
 
         this.dirty = true
         this.save()
@@ -399,17 +458,21 @@ class Connection {
         )
     }
 
-    async setAtoms(setAtomsPayload: Buffers.SetAtomsPayload) {
+    validateGameMessage(payloadName: string, inviteCode: string): boolean {
         if (!this.isLoggedIn()) {
-            this.logError(`Received "SetAtomsPayload", for game "${setAtomsPayload.inviteCode()}" but the connection is not logged in`)
-            return
+            this.logError(`Received "${payloadName}", for game "${inviteCode}" but the connection is not logged in`)
+            return false
         }
-
-        const inviteCode = setAtomsPayload.inviteCode()
         if (!Game.inviteCodeToGameIndex.has(inviteCode)) {
-            this.logError(`Received "SetAtomsPayload" for nonexistent invite code: ${inviteCode}`)
-            return
+            this.logError(`Received "${payloadName}" for nonexistent invite code: ${inviteCode}`)
+            return false
         }
+        return true
+    }
+
+    async setAtoms(setAtomsPayload: Buffers.SetAtomsPayload) {
+        const inviteCode = setAtomsPayload.inviteCode()
+        if (!this.validateGameMessage("SetAtomsPayload", inviteCode)) return
 
         const atomsLength = setAtomsPayload.atomLocationsLength()
         if (atomsLength !== 4) {
@@ -426,6 +489,17 @@ class Connection {
 
         const game = await Game.fromInviteCode(inviteCode, null)
         await game.setAtoms(this, atoms)
+    }
+
+    async submitMove(submitMovePayload: Buffers.SubmitMovePayload) {
+        const inviteCode = submitMovePayload.inviteCode()
+        if (!this.validateGameMessage("SubmitMovePayload", submitMovePayload.inviteCode())) return
+
+        const moveProto = submitMovePayload.move()
+        const move = new Vector2(moveProto.x(), moveProto.y())
+
+        const game = await Game.fromInviteCode(inviteCode, null)
+        await game.submitMove(this, move)
     }
 
     private async createGame(): Promise<string> {
@@ -479,6 +553,11 @@ dispatcher.register(
     Buffers.AnyPayload.SetAtomsPayload,
     Buffers.SetAtomsPayload,
     (connection: Connection, payload: Buffers.SetAtomsPayload) => connection.setAtoms(payload)
+)
+dispatcher.register(
+    Buffers.AnyPayload.SubmitMovePayload,
+    Buffers.SubmitMovePayload,
+    (connection: Connection, payload: Buffers.SubmitMovePayload) => connection.submitMove(payload)
 )
 
 const connectionMap: Map<WebSocket, Connection> = new Map()

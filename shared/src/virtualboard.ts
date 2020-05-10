@@ -35,12 +35,12 @@ class VirtualBoard {
         this.atoms.forEach(a => this.board[a.x][a.y] = true)
     }
 
-    static isSide(cell: Vector2): boolean {
+    isSide(cell: Vector2): boolean {
         return cell.x <= 0 || cell.x >= 9 || cell.y <= 0 || cell.y >= 9
     }
 
     isHit(cell: Vector2): boolean {
-        return !VirtualBoard.isSide(cell) && this.board[cell.x][cell.y]
+        return !this.isSide(cell) && this.board[cell.x][cell.y]
     }
 
     // 10x10 board origin
@@ -56,14 +56,14 @@ class VirtualBoard {
         const getForwardRightCell = () => Vector2.clone(dir).rotateRight().add(dir).add(currentCell)
 
         let currentCell = Vector2.clone(origin)
-        while (!VirtualBoard.isSide(currentCell) || (resultPath.length === 1 && currentCell.equals(resultPath[0]))) {
+        while (!this.isSide(currentCell) || (resultPath.length === 1 && currentCell.equals(resultPath[0]))) {
             if (this.isHit(getForwardCell())) {
                 currentCell.add(dir)
                 break
             }
             const forwardLeftIsHit = this.isHit(getForwardLeftCell())
             const forwardRightIsHit = this.isHit(getForwardRightCell())
-            if (VirtualBoard.isSide(currentCell) && (forwardLeftIsHit || forwardRightIsHit)) {
+            if (this.isSide(currentCell) && (forwardLeftIsHit || forwardRightIsHit)) {
                 break
             }
             if (forwardLeftIsHit && forwardRightIsHit) {

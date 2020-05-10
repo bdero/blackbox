@@ -7,7 +7,7 @@ export class GameBoard {
     public visible?: boolean // Client only
     public atomsSubmitted: boolean
     public atomLocations?: Vector2[] // Hidden on gameboards not owned by the client
-    public moves: {in: Vector2, out: Vector2}[]
+    public moves: {in: Vector2, out: Vector2 | null}[]
 
     private constructor() {}
 
@@ -37,7 +37,7 @@ export class GameBoard {
             const moveOut = move.out()
             result.moves.push({
                 in: new Vector2(moveIn.x(), moveIn.y()),
-                out: new Vector2(moveOut.x(), moveOut.y()),
+                out: (moveOut.x() === -1 && moveOut.y() === -1) ? null : new Vector2(moveOut.x(), moveOut.y()),
             })
         }
 
@@ -51,7 +51,7 @@ export class GameBoard {
                     this.atomLocations.map(a => {return {x: a.x, y: a.y}}) : null,
             atomsSubmitted: this.atomsSubmitted,
             moves:
-                this.moves.map(m => {return {in: {x: m.in.x, y: m.in.y}, out: {x: m.out.x, y: m.out.y}}}),
+                this.moves.map(m => {return {in: {x: m.in.x, y: m.in.y}, out: m.out === null ? null : {x: m.out.x, y: m.out.y}}}),
         }
     }
 
@@ -60,7 +60,7 @@ export class GameBoard {
         if (o.atomLocations != null) result.atomLocations = o.atomLocations.map(a => new Vector2(a.x, a.y))
         result.atomsSubmitted = o.atomsSubmitted
         result.moves = o.moves.map(m => {
-            return {in: new Vector2(m.in.x, m.in.y), out: new Vector2(m.out.x, m.out.y)}
+            return {in: new Vector2(m.in.x, m.in.y), out: m.out === null ? null : new Vector2(m.out.x, m.out.y)}
         })
         return result
     }
@@ -222,7 +222,11 @@ export class GameState {
         }
         Buffers.GameBoard.startMovesVector(this.builder, gameBoard.moves.length)
         gameBoard.moves.forEach(
-            m => Buffers.BoardMove.createBoardMove(this.builder, m.in.x, m.in.y, m.out.x, m.out.y)
+            m => Buffers.BoardMove.createBoardMove(
+                this.builder, m.in.x, m.in.y,
+                m.out === null ? -1 : m.out.x,
+                m.out === null ? -1 : m.out.y
+            )
         )
         const movesOffset = this.builder.endVector()
 

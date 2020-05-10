@@ -1,5 +1,6 @@
 import {UserLoginInfo, playerState} from "./global"
-import {MessageBuilder, Vector2} from "./shared/src/messages"
+import {MessageBuilder} from "./shared/src/messages"
+import {Vector2} from "./shared/src/math"
 import {stateController, View} from "./state_controller"
 import {dispatcher} from "./client_dispatcher"
 
@@ -52,4 +53,10 @@ export function submitAtoms(inviteCode: string, atoms: Vector2[]) {
     console.log("Submitting atoms")
 
     playerState.socket.send(MessageBuilder.create().setSetAtomsPayload(inviteCode, atoms).build())
+}
+
+export function submitMove(inviteCode: string, move: Vector2) {
+    console.log("Submitting move")
+
+    playerState.socket.send(MessageBuilder.create().setSubmitMovePayload(inviteCode, move).build())
 }
