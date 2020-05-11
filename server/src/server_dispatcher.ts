@@ -62,10 +62,10 @@ class Game {
         const result = new Game()
         result.model = gameSession
         result.gameState = GameState.fromNormalizedObject(gameStateObject)
+        await result.refreshRoster()
         if (newSubscriber !== null) {
             await result.subscribeConnection(newSubscriber) // Also populates the roster
         } else {
-            await result.refreshRoster()
             await result.publish()
         }
 
