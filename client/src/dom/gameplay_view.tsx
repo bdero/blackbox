@@ -171,7 +171,7 @@ class GameBoardComponent extends React.Component<GameBoardProps, GameBoardState>
             return
         }
         const hover = new Vector2(x, y)
-        const matchingMove = this.props.gameBoard.moves.findIndex(m => m.in.equals(hover) || m.out.equals(hover))
+        const matchingMove = this.props.gameBoard.moves.findIndex(m => m.in.equals(hover) || (m.out !== null && m.out.equals(hover)))
         if (matchingMove === -1) {
             this.setState({moveHoverIndex: null})
             return
@@ -360,29 +360,44 @@ class GameBoardComponent extends React.Component<GameBoardProps, GameBoardState>
         )
     }
 
-    getRayEndpoint(cell: Vector2, square: boolean, classModifier: string | null): JSX.Element {
+    getRayEndpoint(cell: Vector2, square: boolean, classModifier: string | null, displayText: string | null): JSX.Element {
+        const text = displayText ? (
+            <text
+                className="ray-text"
+                x={cell.x*GameBoardComponent.CELL_SIZE + GameBoardComponent.CELL_SIZE/2}
+                y={cell.y*GameBoardComponent.CELL_SIZE + GameBoardComponent.CELL_SIZE/2}
+            >
+                {displayText}
+            </text>
+        ) : null
         if (square) {
             const padding = 20
-            return <rect
-                className={`ray-endpoint ${classModifier ? classModifier : ""}`}
-                rx="8"
-                x={cell.x*GameBoardComponent.CELL_SIZE + padding}
-                y={cell.y*GameBoardComponent.CELL_SIZE + padding}
-                width={GameBoardComponent.CELL_SIZE - padding*2}
-                height={GameBoardComponent.CELL_SIZE - padding*2}
-            />
+            return <g>
+                <rect
+                    className={`ray-endpoint ${classModifier ? classModifier : ""}`}
+                    rx="8"
+                    x={cell.x*GameBoardComponent.CELL_SIZE + padding}
+                    y={cell.y*GameBoardComponent.CELL_SIZE + padding}
+                    width={GameBoardComponent.CELL_SIZE - padding*2}
+                    height={GameBoardComponent.CELL_SIZE - padding*2}
+                />
+                {text}
+            </g>
         }
-        return <circle
-            className={`ray-endpoint ${classModifier ? classModifier : ""}`}
-            r="18"
-            cx={cell.x*GameBoardComponent.CELL_SIZE + GameBoardComponent.CELL_SIZE/2}
-            cy={cell.y*GameBoardComponent.CELL_SIZE + GameBoardComponent.CELL_SIZE/2}
-        />
+        return <g>
+            <circle
+                className={`ray-endpoint ${classModifier ? classModifier : ""}`}
+                r="18"
+                cx={cell.x*GameBoardComponent.CELL_SIZE + GameBoardComponent.CELL_SIZE/2}
+                cy={cell.y*GameBoardComponent.CELL_SIZE + GameBoardComponent.CELL_SIZE/2}
+            />
+            {text}
+        </g>
     }
 
     getSimulatedRay(
         start: Vector2, end: Vector2 | null = null, pathVisible: boolean = true, square: boolean = false,
-        classModifier: string | null = null
+        classModifier: string | null = null, displayText: string | null = null
     ): JSX.Element {
         virtualBoard.setAtoms(...this.state.localAtoms.map(a => Vector2.add(a.position, new Vector2(1, 1))))
         const pathPoints = virtualBoard.castRay(start)
@@ -391,22 +406,34 @@ class GameBoardComponent extends React.Component<GameBoardProps, GameBoardState>
         ).join(" ")
 
         const first = pathPoints[0]
-        const last = end || (pathPoints.length > 1 ? pathPoints[pathPoints.length - 1] : null)
+        let last = end || null
+        if (pathVisible) {
+            last = pathPoints.length > 1 ? pathPoints[pathPoints.length - 1] : null
+        }
         return <g key={`ray_s${start.toString()}e${end === null ? "null" : end.toString()}sq${square}`}>
             {pathVisible &&
-                <path className={`ray-path ${classModifier ? classModifier : ""}`} d={pathString} />
+                <path
+                    className={`ray-path ${classModifier ? classModifier : ""}`}
+                    style={{fill: "transparent", strokeWidth: 15}}
+                    d={pathString}
+                />
             }
-            {this.getRayEndpoint(first, square, classModifier)}
-            {last !== null && this.getRayEndpoint(last, square, classModifier)}
+            {this.getRayEndpoint(first, square, classModifier, displayText)}
+            {last !== null && this.getRayEndpoint(last, square, classModifier, displayText)}
         </g>
     }
 
     getMoveRays(): JSX.Element {
         const canSeePaths = this.canSeeFullRays()
         const moves = this.props.gameBoard.moves.map((m, i) => {
-            const highlightRay = i === this.state.moveHoverIndex
-            const extraClasses = `move-ray ${highlightRay ? "move-ray-highlight" : ""}`
-            return this.getSimulatedRay(m.in, m.out, canSeePaths, true, extraClasses)
+            const extraClasses = ["move-ray"]
+            if (i === this.state.moveHoverIndex) extraClasses.push("move-ray-highlight")
+            if (m.out === null) {
+                extraClasses.push("move-ray-hit")
+            } else if (m.in.equals(m.out)) {
+                extraClasses.push("move-ray-reflection")
+            }
+            return this.getSimulatedRay(m.in, m.out, canSeePaths, true, extraClasses.join(" "), `${i + 1}`)
         })
         return <g>{moves}</g>
     }
@@ -468,9 +495,9 @@ class GameBoardComponent extends React.Component<GameBoardProps, GameBoardState>
                     preserveAspectRatio="xMidYMid meet">
                     <g transform="scale(0.5, 0.5)">
                         {this.getCells()}
+                        {this.getAtoms()}
                         {this.getMoveRays()}
                         {this.state.rayCoords !== null && this.getSimulatedRay(this.state.rayCoords)}
-                        {this.getAtoms()}
                     </g>
                 </svg>
                 <div className="game-board-status-line">

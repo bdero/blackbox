@@ -221,7 +221,9 @@ export class GameState {
             atomLocationsOffset = this.builder.endVector()
         }
         Buffers.GameBoard.startMovesVector(this.builder, gameBoard.moves.length)
-        gameBoard.moves.forEach(
+        // Flatbuffers packs vectors in reverse order, so reverse them to ensure the moves will be deserialized in chronological order
+        const reverseMoves = [...gameBoard.moves].reverse()
+        reverseMoves.forEach(
             m => Buffers.BoardMove.createBoardMove(
                 this.builder, m.in.x, m.in.y,
                 m.out === null ? -1 : m.out.x,

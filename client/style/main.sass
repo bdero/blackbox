@@ -116,12 +116,30 @@ body, #root, .main-container
     fill: white
     pointer-events: none
 
+=ray-colors($basecolor)
+    fill: $basecolor
+    stroke: darken($basecolor, 30)
+
 .move-ray
-    fill: darken(white, 25)
-    stroke: darken(white, 50)
+    +ray-colors(darken(white, 25))
     stroke-width: 0
     transition: stroke-width 1s ease
+
+.move-ray-hit
+    +ray-colors(red)
+
+.move-ray-reflection
+    +ray-colors(yellow)
 
 .move-ray-highlight
     stroke-width: 15
     transition: stroke-width 0.2s ease
+
+.ray-text
+    fill: black
+    font-family: sans-serif
+    font-size: 40px
+    font-weight: 700
+    dominant-baseline: mathematical
+    text-anchor: middle
+    pointer-events: none

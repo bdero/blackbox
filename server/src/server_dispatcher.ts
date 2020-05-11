@@ -145,7 +145,7 @@ class Game {
 
         const opponentBoard = seat === 0 ? this.gameState.boardB : this.gameState.boardA
         // Is there an existing move in this location?
-        const existingMove = opponentBoard.moves.findIndex(m => m.in.equals(move) || m.out.equals(move))
+        const existingMove = opponentBoard.moves.findIndex(m => m.in.equals(move) || (m.out !== null && m.out.equals(move)))
         if (existingMove !== -1) {
             connection.logError(
                 `Player "${connection.playerKey}" attempted to submit move for game "${this.gameState.metadata.inviteCode}", `
@@ -153,7 +153,7 @@ class Game {
             return
         }
 
-        virtualBoard.setAtoms(...opponentBoard.atomLocations)
+        virtualBoard.setAtoms(...opponentBoard.atomLocations.map(a => Vector2.add(a, new Vector2(1, 1))))
         const rayCast = virtualBoard.castRay(move)
         const endPoint = rayCast[rayCast.length - 1]
         const didHit = rayCast.length === 1 || !virtualBoard.isSide(endPoint)
