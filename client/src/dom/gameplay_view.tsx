@@ -113,6 +113,7 @@ interface GameBoardState {
     rayCoords: null | Vector2,
     localAtoms: {position: Vector2, instance: InstanceState}[],
     dragAtomIndex: number | null,
+    moveHoverIndex: number | null,
     mouseX: number,
     mouseY: number,
 }
@@ -129,6 +130,7 @@ class GameBoardComponent extends React.Component<GameBoardProps, GameBoardState>
             rayCoords: null,
             localAtoms: [],
             dragAtomIndex: null,
+            moveHoverIndex: null,
             mouseX: 0,
             mouseY: 0,
         }
@@ -161,6 +163,20 @@ class GameBoardComponent extends React.Component<GameBoardProps, GameBoardState>
             return
         }
         this.setState({rayCoords: new Vector2(x, y)})
+    }
+
+    setMoveHoverIndex(x?: number, y?: number) {
+        if (x === undefined || y === undefined) {
+            this.setState({moveHoverIndex: null})
+            return
+        }
+        const hover = new Vector2(x, y)
+        const matchingMove = this.props.gameBoard.moves.findIndex(m => m.in.equals(hover) || m.out.equals(hover))
+        if (matchingMove === -1) {
+            this.setState({moveHoverIndex: null})
+            return
+        }
+        this.setState({moveHoverIndex: matchingMove})
     }
 
     // Determines if the player is allowed to make moves on this game board
@@ -307,8 +323,14 @@ class GameBoardComponent extends React.Component<GameBoardProps, GameBoardState>
                 let extraProps = {}
                 if (cellType === 1) {
                     extraProps = {
-                        onMouseEnter: () => this.setRayCoords(x, y),
-                        onMouseLeave: () => this.setRayCoords()
+                        onMouseEnter: () => {
+                            this.setRayCoords(x, y)
+                            this.setMoveHoverIndex(x, y)
+                        },
+                        onMouseLeave: () => {
+                            this.setRayCoords()
+                            this.setMoveHoverIndex()
+                        }
                     }
                 }
                 if (cellType === 1 && isMoveAllowed) {
@@ -338,11 +360,11 @@ class GameBoardComponent extends React.Component<GameBoardProps, GameBoardState>
         )
     }
 
-    getRayEndpoint(cell: Vector2, square: boolean): JSX.Element {
+    getRayEndpoint(cell: Vector2, square: boolean, classModifier: string | null): JSX.Element {
         if (square) {
             const padding = 20
             return <rect
-                className="ray-endpoint"
+                className={`ray-endpoint ${classModifier ? classModifier : ""}`}
                 rx="8"
                 x={cell.x*GameBoardComponent.CELL_SIZE + padding}
                 y={cell.y*GameBoardComponent.CELL_SIZE + padding}
@@ -351,14 +373,17 @@ class GameBoardComponent extends React.Component<GameBoardProps, GameBoardState>
             />
         }
         return <circle
-            className="ray-endpoint"
+            className={`ray-endpoint ${classModifier ? classModifier : ""}`}
             r="18"
             cx={cell.x*GameBoardComponent.CELL_SIZE + GameBoardComponent.CELL_SIZE/2}
             cy={cell.y*GameBoardComponent.CELL_SIZE + GameBoardComponent.CELL_SIZE/2}
         />
     }
 
-    getSimulatedRay(start: Vector2, end: Vector2 | null = null, pathVisible: boolean = true, square: boolean = false): JSX.Element {
+    getSimulatedRay(
+        start: Vector2, end: Vector2 | null = null, pathVisible: boolean = true, square: boolean = false,
+        classModifier: string | null = null
+    ): JSX.Element {
         virtualBoard.setAtoms(...this.state.localAtoms.map(a => Vector2.add(a.position, new Vector2(1, 1))))
         const pathPoints = virtualBoard.castRay(start)
         const pathString = pathPoints.map((s, i) => (
@@ -367,22 +392,21 @@ class GameBoardComponent extends React.Component<GameBoardProps, GameBoardState>
 
         const first = pathPoints[0]
         const last = end || (pathPoints.length > 1 ? pathPoints[pathPoints.length - 1] : null)
-        return <g>
+        return <g key={`ray_s${start.toString()}e${end === null ? "null" : end.toString()}sq${square}`}>
             {pathVisible &&
-                <path
-                    className="ray-path"
-                    d={pathString}
-                />
+                <path className={`ray-path ${classModifier ? classModifier : ""}`} d={pathString} />
             }
-            {this.getRayEndpoint(first, square)}
-            {last !== null && this.getRayEndpoint(last, square)}
+            {this.getRayEndpoint(first, square, classModifier)}
+            {last !== null && this.getRayEndpoint(last, square, classModifier)}
         </g>
     }
 
     getMoveRays(): JSX.Element {
         const canSeePaths = this.canSeeFullRays()
-        const moves = this.props.gameBoard.moves.map(m => {
-            return this.getSimulatedRay(m.in, m.out, canSeePaths, true)
+        const moves = this.props.gameBoard.moves.map((m, i) => {
+            const highlightRay = i === this.state.moveHoverIndex
+            const extraClasses = `move-ray ${highlightRay ? "move-ray-highlight" : ""}`
+            return this.getSimulatedRay(m.in, m.out, canSeePaths, true, extraClasses)
         })
         return <g>{moves}</g>
     }
