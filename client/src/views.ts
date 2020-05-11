@@ -55,6 +55,12 @@ export function submitAtoms(inviteCode: string, atoms: Vector2[]) {
     playerState.socket.send(MessageBuilder.create().setSetAtomsPayload(inviteCode, atoms).build())
 }
 
+export function submitSolution(inviteCode: string, atoms: Vector2[]) {
+    console.log("Submitting solution")
+
+    playerState.socket.send(MessageBuilder.create().setSubmitSolutionPayload(inviteCode, atoms).build())
+}
+
 export function submitMove(inviteCode: string, move: Vector2) {
     console.log("Submitting move")
 

@@ -3,14 +3,14 @@ import {GameState, GameBoard} from "../shared/src/messages"
 import {Vector2} from "../shared/src/math"
 import virtualBoard from "../shared/src/virtualboard"
 import {BlackBox} from "../shared/src/protos/messages_generated"
-import {submitAtoms, submitMove} from "../views"
+import {submitAtoms, submitSolution, submitMove} from "../views"
 
 export class GamePlayView extends React.Component<{gameState: GameState}> {
     constructor(props) {
         super(props)
 
         this.isCurrentPlayer = this.isCurrentPlayer.bind(this)
-
+        this.isWinner = this.isWinner.bind(this)
     }
 
     isCurrentPlayer(playerIndex: number): boolean {
@@ -19,12 +19,21 @@ export class GamePlayView extends React.Component<{gameState: GameState}> {
         return true
     }
 
+    isWinner(playerIndex: number): boolean {
+        return (
+            playerIndex === 0 && this.props.gameState.metadata.status === BlackBox.GameSessionStatus.PlayerAWin
+            || playerIndex === 1 && this.props.gameState.metadata.status === BlackBox.GameSessionStatus.PlayerBWin
+        )
+    }
+
     getPlayerDisplay(playerIndex: number) {
         const hasPlayerJoined = playerIndex < this.props.gameState.metadata.roster.length
         const isCurrentPlayer = this.isCurrentPlayer(playerIndex)
+        const isWinner = this.isWinner(playerIndex)
 
         let playerName = hasPlayerJoined ? this.props.gameState.metadata.roster[playerIndex].username : "MISSINGNO."
         if (isCurrentPlayer) playerName += " 🕹️"
+        if (isWinner) playerName += " 👑"
         const playerTitle = hasPlayerJoined ? playerName : "No opponent has joined! 😧"
 
         const gameBoard = playerIndex === 0 ? this.props.gameState.boardA : this.props.gameState.boardB
@@ -149,6 +158,7 @@ class GameBoardComponent extends React.Component<GameBoardProps, GameBoardState>
         this.onMouseDeactivate = this.onMouseDeactivate.bind(this)
         this.onMouseMove = this.onMouseMove.bind(this)
         this.submitAtoms = this.submitAtoms.bind(this)
+        this.submitSolution = this.submitSolution.bind(this)
     }
 
     componentDidMount() {
@@ -309,6 +319,10 @@ class GameBoardComponent extends React.Component<GameBoardProps, GameBoardState>
         submitAtoms(this.props.inviteCode, this.state.localAtoms.map(a => a.position))
     }
 
+    submitSolution() {
+        submitSolution(this.props.inviteCode, this.state.localAtoms.map(a => a.position))
+    }
+
     getCells(): JSX.Element {
         const isMoveAllowed = this.isMoveAllowed()
         const isAtomSelectionAllowed = this.isAtomSelectionAllowed()
@@ -466,7 +480,7 @@ class GameBoardComponent extends React.Component<GameBoardProps, GameBoardState>
             if (playingGame) {
                 return <button
                     className="atom-selection-button"
-                    onClick={this.submitAtoms}
+                    onClick={this.submitSolution}
                     disabled={!this.isMoveAllowed()}>
                     Guess solution
                 </button>

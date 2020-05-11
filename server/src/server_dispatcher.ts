@@ -85,10 +85,41 @@ class Game {
         const seat = this.roster.get(connection.playerKey).seatNumber
         if (seat !== 0 && seat !== 1) {
             connection.logError(
-                `Player "${connection.playerKey}" attempted to ${action} for game "${this.gameState.metadata.inviteCode}", but their seat number is ${seat}.`)
+                `Player "${connection.playerKey}" attempted to ${action} for game "${this.gameState.metadata.inviteCode}", `
+                + `but they are not in a player seat (seat: ${seat}).`)
             return false
         }
 
+        return true
+    }
+
+    validatePlayerTurn(action: string, connection: Connection): boolean {
+        // Is it the Player's turn?
+        const seat = this.roster.get(connection.playerKey).seatNumber
+        if (!(
+            this.gameState.metadata.status === Buffers.GameSessionStatus.PlayerATurn && seat === 0
+            || this.gameState.metadata.status === Buffers.GameSessionStatus.PlayerBTurn && seat === 1
+        )) {
+            connection.logError(
+                `Player "${connection.playerKey}" attempted to ${action} for game "${this.gameState.metadata.inviteCode}", `
+                + `but it's not the player's turn (seat: ${seat}, game status: ${this.gameState.metadata.status}).`)
+            return false
+        }
+        return true
+    }
+
+    validateUniqueAtoms(action: string, connection: Connection, atoms: Vector2[]): boolean {
+        const uniqueAtoms: Set<string> = new Set()
+        for (let atom of atoms) {
+            const s = atom.toString()
+            if (uniqueAtoms.has(s)) {
+                connection.logError(
+                    `Player "${connection.playerKey}" attempted to ${action} for game "${this.gameState.metadata.inviteCode}" `
+                    + `but the payload contains duplicate atom: ${s}.`)
+                return false
+            }
+            uniqueAtoms.add(s)
+        }
         return true
     }
 
@@ -99,21 +130,56 @@ class Game {
         const board = seat === 0 ? this.gameState.boardA : this.gameState.boardB
         if (board.atomsSubmitted) {
             connection.logError(
-                `Player "${connection.playerKey}" attempted to set atoms for game "${this.gameState.metadata.inviteCode}" (seat: ${seat}), but their atoms are already submitted.`)
+                `Player "${connection.playerKey}" attempted to set atoms for game "${this.gameState.metadata.inviteCode}" (seat: ${seat}), `
+                + `but their atoms are already submitted.`)
             return
         }
 
         if (this.gameState.metadata.status !== Buffers.GameSessionStatus.SelectingAtoms) {
             connection.logError(
-                `Invalid game status "${this.gameState.metadata.status}" while setting atoms for game "${this.gameState.metadata.inviteCode}" -- not all players in the game have submitted atoms, but the game status is not "SelectingAtoms".`)
+                `Invalid game status "${this.gameState.metadata.status}" while setting atoms for game "${this.gameState.metadata.inviteCode}" `
+                + `-- not all players in the game have submitted atoms, but the game status is not "SelectingAtoms".`)
                 // This would be wonky, but might be correctable should it happen, so just log the error message and not return here.
         }
+
+        if (!this.validateUniqueAtoms("set atoms", connection, atoms)) return
 
         board.atomLocations = atoms
         board.atomsSubmitted = true
 
         if (this.gameState.boardA.atomsSubmitted && this.gameState.boardB.atomsSubmitted) {
             this.gameState.metadata.status = Buffers.GameSessionStatus.PlayerATurn
+        }
+
+        this.dirty = true
+        this.save()
+        this.publish()
+    }
+
+    async submitSolution(connection: Connection, atoms: Vector2[]) {
+        if (!this.validateGameAction("submit solution", connection)) return
+        if (!this.validatePlayerTurn("submit solution", connection)) return
+        if (!this.validateUniqueAtoms("submit solution", connection, atoms)) return
+
+        const seat = this.roster.get(connection.playerKey).seatNumber
+        const opponentBoard = seat === 0 ? this.gameState.boardB : this.gameState.boardA
+
+        const opponentAtoms = new Set(opponentBoard.atomLocations.map(a => a.toString()))
+        atoms.forEach(a => opponentAtoms.delete(a.toString()))
+
+        if (opponentAtoms.size === 0) {
+            console.log(`Player "${connection.playerKey}" won game "${this.gameState.metadata.inviteCode}".`)
+
+            this.gameState.metadata.status = seat === 0 ? Buffers.GameSessionStatus.PlayerAWin : Buffers.GameSessionStatus.PlayerBWin
+        } else {
+            const atomsRepr = atoms.map(a => a.toString()).join(", ")
+            console.log (`Player "${connection.playerKey}" attempted incorrect solution in game "${this.gameState.metadata.inviteCode}": ${atomsRepr}.`)
+
+            this.gameState.metadata.status =
+            this.gameState.metadata.status === Buffers.GameSessionStatus.PlayerATurn ?
+                Buffers.GameSessionStatus.PlayerBTurn : Buffers.GameSessionStatus.PlayerATurn
+
+            // TODO(bdero): Submit message to player connection indicating that the guess failed.
         }
 
         this.dirty = true
@@ -131,18 +197,9 @@ class Game {
             return
         }
 
-        // Is it the Player's turn?
-        const seat = this.roster.get(connection.playerKey).seatNumber
-        if (!(
-            this.gameState.metadata.status === Buffers.GameSessionStatus.PlayerATurn && seat === 0
-            || this.gameState.metadata.status === Buffers.GameSessionStatus.PlayerBTurn && seat === 1
-        )) {
-            connection.logError(
-                `Player "${connection.playerKey}" attempted to submit move for game "${this.gameState.metadata.inviteCode}", `
-                + `but it's not the player's turn (seat: ${seat}, game status: ${this.gameState.metadata.status}).`)
-            return
-        }
+        if (!this.validatePlayerTurn("submit move", connection)) return
 
+        const seat = this.roster.get(connection.playerKey).seatNumber
         const opponentBoard = seat === 0 ? this.gameState.boardB : this.gameState.boardA
         // Is there an existing move in this location?
         const existingMove = opponentBoard.moves.findIndex(m => m.in.equals(move) || (m.out !== null && m.out.equals(move)))
@@ -491,6 +548,27 @@ class Connection {
         await game.setAtoms(this, atoms)
     }
 
+    async submitSolution(submitSolutionPayload: Buffers.SubmitSolutionPayload) {
+        const inviteCode = submitSolutionPayload.inviteCode()
+        if (!this.validateGameMessage("SubmitSolutionPayload", inviteCode)) return
+
+        const atomsLength = submitSolutionPayload.atomLocationsLength()
+        if (atomsLength !== 4) {
+            this.logError(
+                `Received "SubmitAtomsPayload" with ${submitSolutionPayload.atomLocationsLength()} atom(s), but exactly 4 is required`)
+            return
+        }
+
+        const atoms: Vector2[] = []
+        for (let i = 0; i < atomsLength; i++) {
+            const a: Buffers.Vec2 = submitSolutionPayload.atomLocations(i)
+            atoms.push(new Vector2(a.x(), a.y()))
+        }
+
+        const game = await Game.fromInviteCode(inviteCode, null)
+        await game.submitSolution(this, atoms)
+    }
+
     async submitMove(submitMovePayload: Buffers.SubmitMovePayload) {
         const inviteCode = submitMovePayload.inviteCode()
         if (!this.validateGameMessage("SubmitMovePayload", submitMovePayload.inviteCode())) return
@@ -553,6 +631,11 @@ dispatcher.register(
     Buffers.AnyPayload.SetAtomsPayload,
     Buffers.SetAtomsPayload,
     (connection: Connection, payload: Buffers.SetAtomsPayload) => connection.setAtoms(payload)
+)
+dispatcher.register(
+    Buffers.AnyPayload.SubmitSolutionPayload,
+    Buffers.SubmitSolutionPayload,
+    (connection: Connection, payload: Buffers.SubmitSolutionPayload) => connection.submitSolution(payload)
 )
 dispatcher.register(
     Buffers.AnyPayload.SubmitMovePayload,
