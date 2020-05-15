@@ -14,14 +14,30 @@ body, #root, .main-container
     justify-content: safe center
     align-items: center
 
-// Container for the game view.
 .game-container
+    display: flex
+    flex-direction: column
+    justify-content: center
+
+// Container for the game view.
+.game-boards
     display: flex
     flex-direction: row
     flex-wrap: wrap
     // When items wrap, the flex-basis value doesn't seem to dynamically update with the content, and
     // so flex-shrink alone doesn't work for keeping the contents always centered.
     justify-content: center
+
+.game-status
+    display: flex
+    justify-content: center
+    padding: 0.8em
+    .game-status-toast
+        font-size: 20pt
+        background-color: black
+        color: white
+        padding: 0.8em
+        border-radius: 1.2em
 
 // Container that holds a full player display in the game view. There are always exactly two of these
 // in the game-container.
@@ -104,6 +120,7 @@ body, #root, .main-container
     align-items: center
     font-size: 15pt
     height: 1.5em
+    padding: 0.5em
 
 .atom-selection-button
     font-size: 15pt

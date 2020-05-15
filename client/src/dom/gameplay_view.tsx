@@ -11,6 +11,12 @@ export class GamePlayView extends React.Component<{gameState: GameState}> {
 
         this.isCurrentPlayer = this.isCurrentPlayer.bind(this)
         this.isWinner = this.isWinner.bind(this)
+        this.isSpectator = this.isSpectator.bind(this)
+        this.isCurrentPlayersTurn = this.isCurrentPlayersTurn.bind(this)
+        this.isOpponentsTurn = this.isOpponentsTurn.bind(this)
+        this.getStatusMessage = this.getStatusMessage.bind(this)
+        this.isGamePlaying = this.isGamePlaying.bind(this)
+        this.isGameOver = this.isGameOver.bind(this)
     }
 
     isCurrentPlayer(playerIndex: number): boolean {
@@ -23,6 +29,38 @@ export class GamePlayView extends React.Component<{gameState: GameState}> {
         return (
             playerIndex === 0 && this.props.gameState.metadata.status === BlackBox.GameSessionStatus.PlayerAWin
             || playerIndex === 1 && this.props.gameState.metadata.status === BlackBox.GameSessionStatus.PlayerBWin
+        )
+    }
+
+    isSpectator(): boolean {
+        return this.props.gameState.metadata.seatNumber >= 2
+    }
+
+    isCurrentPlayersTurn(): boolean {
+        return (
+            this.props.gameState.metadata.seatNumber === 0 && this.props.gameState.metadata.status === BlackBox.GameSessionStatus.PlayerATurn
+            || this.props.gameState.metadata.seatNumber === 1 && this.props.gameState.metadata.status === BlackBox.GameSessionStatus.PlayerBTurn
+        )
+    }
+
+    isOpponentsTurn(): boolean {
+        return (
+            this.props.gameState.metadata.seatNumber === 1 && this.props.gameState.metadata.status === BlackBox.GameSessionStatus.PlayerATurn
+            || this.props.gameState.metadata.seatNumber === 0 && this.props.gameState.metadata.status === BlackBox.GameSessionStatus.PlayerBTurn
+        )
+    }
+
+    isGamePlaying(): boolean {
+        return (
+            this.props.gameState.metadata.status === BlackBox.GameSessionStatus.PlayerATurn
+            || this.props.gameState.metadata.status === BlackBox.GameSessionStatus.PlayerBTurn
+        )
+    }
+
+    isGameOver(): boolean {
+        return (
+            this.props.gameState.metadata.status === BlackBox.GameSessionStatus.PlayerAWin
+            || this.props.gameState.metadata.status === BlackBox.GameSessionStatus.PlayerBWin
         )
     }
 
@@ -49,7 +87,7 @@ export class GamePlayView extends React.Component<{gameState: GameState}> {
         } else if (!isCurrentPlayer && this.props.gameState.metadata.status === BlackBox.GameSessionStatus.SelectingAtoms) {
             playerModal = (
                 <div className="invite-link-modal">
-                    {gameBoard.atomsSubmitted ? `Ready!${this.props.gameState.metadata.seatNumber <= 1 ? " Place your atoms to begin." : ""}` : "Waiting for atom placements..."}
+                    {gameBoard.atomsSubmitted ? `Ready!${this.props.gameState.metadata.seatNumber <= 1 ? " Place your atoms to begin." : ""}` : "Waiting for opponent to place atoms..."}
                 </div>
             )
         }
@@ -73,15 +111,55 @@ export class GamePlayView extends React.Component<{gameState: GameState}> {
         )
     }
 
+    getStatusMessage(): string | null {
+        if (this.isSpectator()) {
+            if (this.isGamePlaying()) {
+                const playerName = this.props.gameState.metadata.status === BlackBox.GameSessionStatus.PlayerATurn
+                    ? this.props.gameState.metadata.roster[0].username : this.props.gameState.metadata.roster[1].username
+                return `${playerName}'s turn 🤔`
+            }
+            if (this.isGameOver()) {
+                const playerName = this.props.gameState.metadata.status === BlackBox.GameSessionStatus.PlayerAWin
+                    ? this.props.gameState.metadata.roster[0].username : this.props.gameState.metadata.roster[1].username
+                return `${playerName} wins! 🎉`
+            }
+
+            return "Waiting for atom selections... 😴"
+        }
+        if (this.isGamePlaying()) {
+            if (this.isCurrentPlayersTurn()) {
+                return "Your turn 🤔"
+            }
+            return "Opponent's turn 😴"
+        }
+        if (this.isGameOver()) {
+            if (this.isWinner(this.props.gameState.metadata.seatNumber)) {
+                return "You won! 🎉"
+            }
+            return "You lost! 😵"
+        }
+        return null
+    }
+
     render() {
         if (this.props.gameState === null) {
             return <div>No game loaded</div>
         }
+        const statusMessage = this.getStatusMessage()
 
         return (
             <div className="game-container">
-                {this.getPlayerDisplay(0)}
-                {this.getPlayerDisplay(1)}
+                <div className="game-status">
+                    {statusMessage &&
+                        <div className="game-status-toast">
+                            {statusMessage}
+                        </div>
+                    }
+                </div>
+                <div className="game-boards">
+                    {this.getPlayerDisplay(0)}
+                    {this.getPlayerDisplay(1)}
+                </div>
             </div>
         )
     }
@@ -162,6 +240,7 @@ class GameBoardComponent extends React.Component<GameBoardProps, GameBoardState>
         this.onMouseMove = this.onMouseMove.bind(this)
         this.submitAtoms = this.submitAtoms.bind(this)
         this.submitSolution = this.submitSolution.bind(this)
+        this.getGameBoardEnabled = this.getGameBoardEnabled.bind(this)
     }
 
     componentDidMount() {
@@ -585,15 +664,28 @@ class GameBoardComponent extends React.Component<GameBoardProps, GameBoardState>
         </span>
     }
 
+    getGameBoardEnabled(): boolean {
+        if (this.isGameOver()) {
+            return true
+        }
+        if (this.localUserIsPlayer()) {
+            return this.isMoveAllowed() || this.isAtomSubmissionAllowed()
+        }
+        // The local user must be a spectator
+        return (
+            this.props.gameBoardIndex === 1 && this.props.gameStatus === BlackBox.GameSessionStatus.PlayerATurn
+            || this.props.gameBoardIndex === 0 && this.props.gameStatus === BlackBox.GameSessionStatus.PlayerBTurn
+        )
+    }
+
     render() {
-        const gameBoardDisabled = this.localUserIsPlayer() && !(this.isMoveAllowed() || this.isAtomSubmissionAllowed())
         return (
             <div>
                 <svg
                     onMouseUp={this.onMouseDeactivate}
                     onMouseLeave={this.onMouseDeactivate}
                     onMouseMove={this.onMouseMove}
-                    className={`game-board ${gameBoardDisabled ? "game-board-disabled" : ""}`}
+                    className={`game-board ${!this.getGameBoardEnabled() ? "game-board-disabled" : ""}`}
                     viewBox={`0 0 ${GameBoardComponent.BOARD_SIZE} ${GameBoardComponent.BOARD_SIZE}`}
                     preserveAspectRatio="xMidYMid meet">
                     <g transform="scale(0.5, 0.5)">
