@@ -290,13 +290,14 @@ class Game {
         const rosterEntry = this.roster.get(connection.playerKey)
 
         const result = this.gameState.clone()
+        result.metadata.seatNumber = rosterEntry.seatNumber
+
         if (result.metadata.status == Buffers.GameSessionStatus.PlayerAWin
             || result.metadata.status == Buffers.GameSessionStatus.PlayerBWin) {
             // Don't occlude any state if the game has been won
             return result
         }
 
-        result.metadata.seatNumber = rosterEntry.seatNumber
         if (rosterEntry.seatNumber == 0) {
             // Player A: Can't see Board B
             result.boardA.visible = true

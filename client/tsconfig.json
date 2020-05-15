@@ -8,6 +8,7 @@
         "types": [
             "flatbuffers"
         ],
-        "lib": ["ES2015", "DOM"]
+        "lib": ["ES2017", "DOM"],
+        "downlevelIteration": true
     }
 }

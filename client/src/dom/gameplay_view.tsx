@@ -144,7 +144,10 @@ class GameBoardComponent extends React.Component<GameBoardProps, GameBoardState>
             mouseY: 0,
         }
 
+        this.atomsSynced = this.atomsSynced.bind(this)
+        this.syncLocalAtoms = this.syncLocalAtoms.bind(this)
         this.setRayCoords = this.setRayCoords.bind(this)
+        this.isGameOver = this.isGameOver.bind(this)
         this.isMoveAllowed = this.isMoveAllowed.bind(this)
         this.localUserIsPlayer = this.localUserIsPlayer.bind(this)
         this.localUserIsSpectator = this.localUserIsSpectator.bind(this)
@@ -164,6 +167,75 @@ class GameBoardComponent extends React.Component<GameBoardProps, GameBoardState>
     componentDidMount() {
         if (this.props.gameBoard.atomLocations) {
             this.props.gameBoard.atomLocations.forEach(a => this.addAtom(a.x, a.y))
+        }
+        this.syncLocalAtoms()
+    }
+
+    componentDidUpdate() {
+        this.syncLocalAtoms()
+    }
+
+    atomsSynced(): boolean {
+        if (this.props.gameBoard.atomLocations === null) {
+            return true
+        }
+        if (this.state.localAtoms.length !== this.props.gameBoard.atomLocations.length) {
+            return false
+        }
+        const propAtoms = new Set(this.props.gameBoard.atomLocations.map(a => a.toString()))
+        for (let a of this.state.localAtoms) {
+            if (!propAtoms.delete(a.position.toString())) {
+                return false
+            }
+        }
+        return propAtoms.size === 0
+    }
+
+    syncLocalAtoms() {
+        if (this.isGameOver() && !this.atomsSynced()) {
+            this.setState(prevState => {
+                const stateAtoms = [...prevState.localAtoms.map(a => {
+                    return {position: Vector2.clone(a.position), instance: a.instance}
+                })]
+
+                // Intentionally avoid deep copying the Vector2's to make changing them upon lookup possible
+                const stateAtomsLookup: Map<string, Vector2> = new Map()
+                stateAtoms.forEach(a => stateAtomsLookup.set(a.position.toString(), a.position))
+                const propsAtomsLookup: Map<string, Vector2> = new Map()
+                this.props.gameBoard.atomLocations.forEach(a => propsAtomsLookup.set(a.toString(), a))
+
+                // Cancel out atoms that have matching positions
+                Array.from(stateAtomsLookup.keys()).map(k => {
+                    if (propsAtomsLookup.has(k)) {
+                        propsAtomsLookup.delete(k)
+                        stateAtomsLookup.delete(k)
+                    }
+                })
+
+                // If here are any remaining state atoms that are mismatched, reset their positions to the
+                // remaining prop positions.
+                // Note that since the game must be over to execute this, the number of local atoms should
+                // always be >= the number of prop atoms set by the server (4).
+                while (stateAtomsLookup.size > 0) {
+                    if (propsAtomsLookup.size === 0) {
+                        console.error("Game won, but somehow there are more local atoms than server-supplied atoms on the board; this is definitely a bug")
+                    }
+                    const [sk, sv]: [string, Vector2] = stateAtomsLookup.entries().next().value
+                    const [pk, pv]: [string, Vector2] = propsAtomsLookup.entries().next().value
+                    console.log(`Resolving atom mismatch -- prop: ${pk} state: ${sk}`)
+                    sv.x = pv.x
+                    sv.y = pv.y
+                    stateAtomsLookup.delete(sk)
+                    propsAtomsLookup.delete(pk)
+                }
+
+                // Construct new local atoms for remaining prop atoms
+                for (let a of propsAtomsLookup.values()) {
+                    stateAtoms.push({position: Vector2.clone(a), instance: createInstance()})
+                }
+
+                return {localAtoms: stateAtoms}
+            })
         }
     }
 
@@ -189,12 +261,28 @@ class GameBoardComponent extends React.Component<GameBoardProps, GameBoardState>
         this.setState({moveHoverIndex: matchingMove})
     }
 
+    isGameOver(): boolean {
+        return this.props.gameStatus === BlackBox.GameSessionStatus.PlayerAWin
+            || this.props.gameStatus === BlackBox.GameSessionStatus.PlayerBWin
+    }
+
     // Determines if the player is allowed to make moves on this game board
     isMoveAllowed(): boolean {
         // If it's the local player's turn, the player is allowed to submit moves against the opponent's game board
         return (
             (this.props.seatNumber === 0 && this.props.gameStatus === BlackBox.GameSessionStatus.PlayerATurn && this.props.gameBoardIndex === 1)
             || (this.props.seatNumber === 1 && this.props.gameStatus === BlackBox.GameSessionStatus.PlayerBTurn && this.props.gameBoardIndex === 0)
+        )
+    }
+
+    isAtomSubmissionAllowed(): boolean {
+        return (
+            this.props.gameStatus === BlackBox.GameSessionStatus.SelectingAtoms
+            && this.props.gameBoard.atomsSubmitted === false
+            && (
+                this.props.seatNumber === 0 && this.props.gameBoardIndex === 0
+                || this.props.seatNumber === 1 && this.props.gameBoardIndex === 1
+            )
         )
     }
 
@@ -213,8 +301,7 @@ class GameBoardComponent extends React.Component<GameBoardProps, GameBoardState>
     }
 
     canSeeFullRays(): boolean {
-        if (this.props.gameStatus === BlackBox.GameSessionStatus.PlayerAWin
-            || this.props.gameStatus === BlackBox.GameSessionStatus.PlayerBWin) return true
+        if (this.isGameOver()) return true
         const inGame = this.props.gameStatus === BlackBox.GameSessionStatus.PlayerATurn || this.props.gameStatus === BlackBox.GameSessionStatus.PlayerBTurn
         if (inGame && this.isLocalPlayerBoard()) return true
         return false
@@ -453,6 +540,7 @@ class GameBoardComponent extends React.Component<GameBoardProps, GameBoardState>
     }
 
     getAtoms(): JSX.Element {
+
         const atoms = this.state.localAtoms.map((a, i) => {
             let posX = GameBoardComponent.CELL_SIZE*1.5 + a.position.x*GameBoardComponent.CELL_SIZE
             let posY = GameBoardComponent.CELL_SIZE*1.5 + a.position.y*GameBoardComponent.CELL_SIZE
@@ -498,13 +586,14 @@ class GameBoardComponent extends React.Component<GameBoardProps, GameBoardState>
     }
 
     render() {
+        const gameBoardDisabled = this.localUserIsPlayer() && !(this.isMoveAllowed() || this.isAtomSubmissionAllowed())
         return (
             <div>
                 <svg
                     onMouseUp={this.onMouseDeactivate}
                     onMouseLeave={this.onMouseDeactivate}
                     onMouseMove={this.onMouseMove}
-                    className={`game-board ${this.localUserIsPlayer && !this.isMoveAllowed() && "game-board-disabled"}`}
+                    className={`game-board ${gameBoardDisabled ? "game-board-disabled" : ""}`}
                     viewBox={`0 0 ${GameBoardComponent.BOARD_SIZE} ${GameBoardComponent.BOARD_SIZE}`}
                     preserveAspectRatio="xMidYMid meet">
                     <g transform="scale(0.5, 0.5)">
