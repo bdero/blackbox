@@ -8,8 +8,8 @@ export function login(loginInfo: UserLoginInfo, register: boolean) {
     if (playerState.socket !== null) {
         playerState.socket.close(undefined, "Reconnecting")
     }
-
-    playerState.socket = new WebSocket("ws://localhost:8888")
+    const wsProtocol = window.location.protocol === "https:" ? "wss" : "ws"
+    playerState.socket = new WebSocket(`${wsProtocol}://${window.location.hostname}:8888`)
     playerState.socket.binaryType = "arraybuffer"
     playerState.socket.onopen = (event) => {
         playerState.socket.send(
