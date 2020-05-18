@@ -1,3 +1,4 @@
+// @ts-ignore
 import {flatbuffers} from "flatbuffers"
 
 import {BlackBox as Buffers} from "./protos/messages_generated"
@@ -5,16 +6,14 @@ import {Vector2} from "./math"
 
 export class GameBoard {
     public visible?: boolean // Client only
-    public atomsSubmitted: boolean
+    public atomsSubmitted: boolean = false
     public atomLocations?: Vector2[] // Hidden on gameboards not owned by the client
-    public moves: {in: Vector2, out: Vector2 | null}[]
+    public moves: {in: Vector2, out: Vector2 | null}[] = []
 
     private constructor() {}
 
     static createNew(): GameBoard {
         const gameBoard = new GameBoard()
-        gameBoard.atomsSubmitted = false
-        gameBoard.moves = []
         return gameBoard
     }
 
@@ -25,16 +24,16 @@ export class GameBoard {
         result.atomsSubmitted = buffer.atomsSubmitted()
         result.atomLocations = []
         for (let i = 0; i < buffer.atomLocationsLength(); i++) {
-            const location = buffer.atomLocations(i)
+            const location = buffer.atomLocations(i) as Buffers.Vec2
             result.atomLocations.push(
                 new Vector2(location.x(), location.y())
             )
         }
         result.moves = []
         for (let i = 0; i < buffer.movesLength(); i++) {
-            const move = buffer.moves(i)
-            const moveIn = move.in()
-            const moveOut = move.out()
+            const move = buffer.moves(i) as Buffers.BoardMove
+            const moveIn = move.in() as Buffers.Vec2
+            const moveOut = move.out() as Buffers.Vec2
             result.moves.push({
                 in: new Vector2(moveIn.x(), moveIn.y()),
                 out: (moveOut.x() === -1 && moveOut.y() === -1) ? null : new Vector2(moveOut.x(), moveOut.y()),
@@ -67,30 +66,29 @@ export class GameBoard {
 }
 
 export class GameMetadata {
+    // @ts-ignore
     public inviteCode: string
     public seatNumber?: number // Client only
-    public roster: {key?: string, username?: string, online?: boolean}[] // Keys are server only
-    public status: Buffers.GameSessionStatus
+    public roster: {key?: string, username?: string, online?: boolean}[] = [] // Keys are server only
+    public status: Buffers.GameSessionStatus = Buffers.GameSessionStatus.SelectingAtoms
 
     private constructor() {}
 
     static createNew(inviteCode: string): GameMetadata {
         const metadata = new GameMetadata()
         metadata.inviteCode = inviteCode
-        metadata.roster = []
-        metadata.status = Buffers.GameSessionStatus.SelectingAtoms
         return metadata
     }
 
     static fromBuffer(buffer: Buffers.GameMetadata): GameMetadata {
         const result = new GameMetadata()
 
-        result.inviteCode = buffer.inviteCode()
+        result.inviteCode = buffer.inviteCode() as string
         result.seatNumber = buffer.seatNumber()
         result.roster = []
         for (let i = 0; i < buffer.rosterLength(); i++) {
-            const rosterItem = buffer.roster(i)
-            result.roster.push({username: rosterItem.username(), online: rosterItem.online()})
+            const rosterItem = buffer.roster(i) as Buffers.GameSessionPlayer
+            result.roster.push({username: rosterItem.username() ?? undefined, online: rosterItem.online()})
         }
         result.status = buffer.status()
 
@@ -115,26 +113,25 @@ export class GameMetadata {
 }
 
 export class GameState {
+    // @ts-ignore
     public metadata: GameMetadata
-    public boardA: GameBoard
-    public boardB: GameBoard
+    public boardA: GameBoard = GameBoard.createNew()
+    public boardB: GameBoard = GameBoard.createNew()
 
     private constructor() {}
 
     static createNew(inviteCode: string): GameState {
         const gameState = new GameState()
         gameState.metadata = GameMetadata.createNew(inviteCode)
-        gameState.boardA = GameBoard.createNew()
-        gameState.boardB = GameBoard.createNew()
         return gameState
     }
 
     static fromBuffer(buffer: Buffers.GameSessionState): GameState {
         const result = new GameState()
 
-        result.metadata = GameMetadata.fromBuffer(buffer.metadata())
-        result.boardA = GameBoard.fromBuffer(buffer.boardA())
-        result.boardB = GameBoard.fromBuffer(buffer.boardB())
+        result.metadata = GameMetadata.fromBuffer(buffer.metadata() as Buffers.GameMetadata)
+        result.boardA = GameBoard.fromBuffer(buffer.boardA() as Buffers.GameBoard)
+        result.boardB = GameBoard.fromBuffer(buffer.boardB() as Buffers.GameBoard)
 
         return result
     }
@@ -196,18 +193,18 @@ export class GameState {
         let players: number[] = []
         if (metadata.roster.length > 0) {
             players = metadata.roster.map(player => {
-                const usernameOffset = this.createString(player.username)
+                const usernameOffset = this.createString(player.username) as number
                 Buffers.GameSessionPlayer.startGameSessionPlayer(this.builder)
                 Buffers.GameSessionPlayer.addUsername(this.builder, usernameOffset)
-                Buffers.GameSessionPlayer.addOnline(this.builder, player.online)
+                Buffers.GameSessionPlayer.addOnline(this.builder, player.online as boolean)
                 return Buffers.GameSessionPlayer.endGameSessionPlayer(this.builder)
             })
         }
         rosterOffset = Buffers.GameMetadata.createRosterVector(this.builder, players)
 
         Buffers.GameMetadata.startGameMetadata(this.builder)
-        Buffers.GameMetadata.addInviteCode(this.builder, inviteCodeOffset)
-        Buffers.GameMetadata.addSeatNumber(this.builder, metadata.seatNumber)
+        Buffers.GameMetadata.addInviteCode(this.builder, inviteCodeOffset as number)
+        Buffers.GameMetadata.addSeatNumber(this.builder, metadata.seatNumber as number)
         if (rosterOffset !== null) Buffers.GameMetadata.addRoster(this.builder, rosterOffset)
         Buffers.GameMetadata.addStatus(this.builder, metadata.status)
         return Buffers.GameMetadata.endGameMetadata(this.builder)
@@ -233,7 +230,7 @@ export class GameState {
         const movesOffset = this.builder.endVector()
 
         Buffers.GameBoard.startGameBoard(this.builder)
-        Buffers.GameBoard.addVisible(this.builder, gameBoard.visible)
+        Buffers.GameBoard.addVisible(this.builder, gameBoard.visible as boolean)
         Buffers.GameBoard.addAtomsSubmitted(this.builder, gameBoard.atomsSubmitted)
         if (atomLocationsOffset !== null) Buffers.GameBoard.addAtomLocations(this.builder, atomLocationsOffset)
         Buffers.GameBoard.addMoves(this.builder, movesOffset)
@@ -356,7 +353,7 @@ export class GameState {
     setSetAtomsPayload(inviteCode: string, atoms: Vector2[]) {
         this.payloadType = Buffers.AnyPayload.SetAtomsPayload
 
-        const inviteCodeOffset = this.createString(inviteCode)
+        const inviteCodeOffset = this.createString(inviteCode) as number
         Buffers.SetAtomsPayload.startAtomLocationsVector(this.builder, atoms.length)
         atoms.forEach(a => {
             Buffers.Vec2.createVec2(this.builder, a.x, a.y)
@@ -374,7 +371,7 @@ export class GameState {
     setSubmitMovePayload(inviteCode: string, move: Vector2) {
         this.payloadType = Buffers.AnyPayload.SubmitMovePayload
 
-        const inviteCodeOffset = this.createString(inviteCode)
+        const inviteCodeOffset = this.createString(inviteCode) as number
 
         Buffers.SubmitMovePayload.startSubmitMovePayload(this.builder)
         Buffers.SubmitMovePayload.addInviteCode(this.builder, inviteCodeOffset)
@@ -388,7 +385,7 @@ export class GameState {
     setSubmitSolutionPayload(inviteCode: string, atoms: Vector2[]) {
         this.payloadType = Buffers.AnyPayload.SubmitSolutionPayload
 
-        const inviteCodeOffset = this.createString(inviteCode)
+        const inviteCodeOffset = this.createString(inviteCode) as number
         Buffers.SubmitSolutionPayload.startAtomLocationsVector(this.builder, atoms.length)
         atoms.forEach(a => {
             Buffers.Vec2.createVec2(this.builder, a.x, a.y)

@@ -11,5 +11,6 @@
         // Sequalize has issues when transpiling to es5 in typescript, so override to es6:
         // https://github.com/sequelize/sequelize/issues/7840
         "target": "es6",
+        "strict": true,
     },
 }

@@ -16,7 +16,7 @@ function numberFlag(value: number): CliFlag<number> {
     }
 }
 
-const cliFlags = {
+const cliFlags: {[flag: string]: CliFlag<any>} = {
     "--port": numberFlag(8888),
 }
 

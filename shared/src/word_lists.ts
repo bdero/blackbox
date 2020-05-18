@@ -825,7 +825,7 @@ const ANIMALS = [
     "Zorse"
 ]
 
-function choose(arr) {
+function choose<T>(arr: T[]): T {
     return arr[Math.floor(Math.random()*arr.length)]
 }
 function randomName() {
