@@ -1,5 +1,31 @@
 # blackbox
 
+![Screenshot](screenshots/twoplayers.png)
+
+Black Box is a turn-based two player board game where each player places objects (called "atoms") on their own game board and then attempts to deduce the location of the opponent's atoms by casting rays across the opponent's game board.
+
+This implementation supports games with exactly 4 atoms. See this [Wikipedia article](https://en.wikipedia.org/wiki/Black_Box_(game)#Rules) for the full set of raycast behavior rules.
+
+## Running the server
+
+1. Ensure that the SQLite3 CLI tool is installed and available in the executable `PATH`:
+    * Arch Linux: `pacman -S sqlite`
+    * Windows with Scoop: `scoop install sqlite3`
+    * MacOS with Brew: `brew install sqlite`
+1. Clone this repository: `git clone https://github.com/bdero/blackbox.git`
+1. Install dependencies: `cd blackbox/server && npm install`
+1. Run the server: `npm start`
+
+The server should start listening for HTTP requests on port 8888.
+
+**Note:** The server _only_ accepts WebSocket protocol upgrade requests and communicates strictly over WebSocket. It does not respond to generic HTTP requests or know how to serve the client to the browser.
+
+## Running the client
+
+1. Clone this repository: `git clone https://github.com/bdero/blackbox.git`
+1. Install dependencies: `cd blackbox/client && npm install`
+1. Run the server: `npm start`
+
 ## License (MIT)
 
 Copyright © `2020` `Brandon DeRosier`
